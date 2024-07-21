@@ -65,6 +65,8 @@ GEM
       kaminari (>= 1.2.1)
       railties (>= 6.1)
       ransack (>= 4.0)
+    activeadmin_quill_editor (1.2.0)
+      activeadmin (>= 2.9, < 4)
     activejob (7.1.3.4)
       activesupport (= 7.1.3.4)
       globalid (>= 0.3.6)
@@ -128,6 +130,8 @@ GEM
       warden (~> 1.2.3)
     drb (2.2.1)
     erubi (1.13.0)
+    ethon (0.16.0)
+      ffi (>= 1.15.0)
     faker (3.4.2)
       i18n (>= 1.8.11, < 2)
     ffi (1.17.0-aarch64-linux-gnu)
@@ -144,6 +148,10 @@ GEM
     has_scope (0.8.2)
       actionpack (>= 5.2)
       activesupport (>= 5.2)
+    httparty (0.22.0)
+      csv
+      mini_mime (>= 1.0.0)
+      multi_xml (>= 0.5.2)
     i18n (1.14.5)
       concurrent-ruby (~> 1.0)
     image_processing (1.12.2)
@@ -198,6 +206,8 @@ GEM
     mini_mime (1.1.5)
     minitest (5.24.1)
     msgpack (1.7.2)
+    multi_xml (0.7.1)
+      bigdecimal (~> 3.1)
     mutex_m (0.2.0)
     net-imap (0.4.14)
       date
@@ -221,6 +231,10 @@ GEM
       racc (~> 1.4)
     nokogiri (1.16.6-x86_64-linux)
       racc (~> 1.4)
+    open-uri (0.4.1)
+      stringio
+      time
+      uri
     orm_adapter (0.5.0)
     parallel (1.25.1)
     parser (3.3.4.0)
@@ -355,14 +369,19 @@ GEM
       railties (>= 7.0.0)
     thor (1.3.1)
     tilt (2.4.0)
+    time (0.3.0)
+      date
     timeout (0.4.1)
     turbo-rails (2.0.6)
       actionpack (>= 6.0.0)
       activejob (>= 6.0.0)
       railties (>= 6.0.0)
+    typhoeus (1.4.1)
+      ethon (>= 0.9.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (2.5.0)
+    uri (0.13.0)
     warden (1.2.9)
       rack (>= 2.0.9)
     web-console (4.2.1)
@@ -390,18 +409,24 @@ PLATFORMS
 DEPENDENCIES
   active_storage_validations
   activeadmin
+  activeadmin_quill_editor
   bootsnap
   capybara
   debug
   devise
   faker (~> 3.4)
+  httparty
   image_processing (~> 1.2)
   importmap-rails
   jbuilder
+  json
   kaminari
+  nokogiri
+  open-uri
   puma (>= 5.0)
   rails (~> 7.1.3, >= 7.1.3.4)
   rubocop-rails
+  ruby-vips
   sassc-rails (~> 2.1)
   selenium-webdriver
   sprockets-rails
@@ -410,6 +435,7 @@ DEPENDENCIES
   stripe
   tailwindcss-rails
   turbo-rails
+  typhoeus
   tzinfo-data
   web-console
 

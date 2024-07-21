@@ -77,3 +77,17 @@ gem 'tailwindcss-rails'
 gem 'faker', '~> 3.4'
 
 gem 'sassc-rails', '~> 2.1'
+
+gem 'nokogiri'
+
+gem 'json'
+
+gem 'open-uri'
+
+gem 'activeadmin_quill_editor'
+
+gem 'httparty'
+
+gem 'typhoeus'
+
+gem 'ruby-vips'
