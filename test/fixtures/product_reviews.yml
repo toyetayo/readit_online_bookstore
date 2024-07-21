@@ -1,0 +1,17 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  product: one
+  review: MyText
+  rating: 1
+  review_date: 2024-07-21 01:28:47
+  reviewer_name: MyString
+  user: one
+
+two:
+  product: two
+  review: MyText
+  rating: 1
+  review_date: 2024-07-21 01:28:47
+  reviewer_name: MyString
+  user: two

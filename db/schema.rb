@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_21_062351) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_21_063233) do
   create_table "active_admin_comments", force: :cascade do |t|
     t.string "namespace"
     t.text "body"
@@ -65,6 +65,128 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_062351) do
     t.index ["reset_password_token"], name: "index_admin_users_on_reset_password_token", unique: true
   end
 
+  create_table "categories", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "order_items", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "product_id", null: false
+    t.datetime "purchase_date"
+    t.integer "order_id", null: false
+    t.integer "quantity"
+    t.decimal "price"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_order_items_on_order_id"
+    t.index ["product_id"], name: "index_order_items_on_product_id"
+    t.index ["user_id"], name: "index_order_items_on_user_id"
+  end
+
+  create_table "orders", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "receiver_name"
+    t.string "address"
+    t.string "city"
+    t.integer "zip"
+    t.integer "province_id", null: false
+    t.integer "shipping_type_id", null: false
+    t.datetime "purchase_date"
+    t.string "status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["province_id"], name: "index_orders_on_province_id"
+    t.index ["shipping_type_id"], name: "index_orders_on_shipping_type_id"
+    t.index ["user_id"], name: "index_orders_on_user_id"
+  end
+
+  create_table "product_categories", force: :cascade do |t|
+    t.integer "product_id", null: false
+    t.integer "category_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_id"], name: "index_product_categories_on_category_id"
+    t.index ["product_id"], name: "index_product_categories_on_product_id"
+  end
+
+  create_table "product_reviews", force: :cascade do |t|
+    t.integer "product_id", null: false
+    t.text "review"
+    t.integer "rating"
+    t.datetime "review_date"
+    t.string "reviewer_name"
+    t.integer "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_product_reviews_on_product_id"
+    t.index ["user_id"], name: "index_product_reviews_on_user_id"
+  end
+
+  create_table "products", force: :cascade do |t|
+    t.string "name"
+    t.string "author"
+    t.integer "number_in_stock"
+    t.decimal "price"
+    t.integer "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_products_on_user_id"
+  end
+
+  create_table "provinces", id: :string, force: :cascade do |t|
+    t.string "name"
+    t.decimal "gst_rate"
+    t.decimal "pst_rate"
+    t.decimal "hst_rate"
+    t.decimal "qst_rate"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "shipping_types", force: :cascade do |t|
+    t.string "name"
+    t.decimal "price"
+    t.integer "delivery_days"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "shopping_cart_items", force: :cascade do |t|
+    t.integer "product_id", null: false
+    t.decimal "price"
+    t.datetime "date_added"
+    t.integer "user_id", null: false
+    t.integer "quantity"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_shopping_cart_items_on_product_id"
+    t.index ["user_id"], name: "index_shopping_cart_items_on_user_id"
+  end
+
+  create_table "user_product_reviews", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "product_review_id", null: false
+    t.datetime "review_date"
+    t.integer "rating"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_review_id"], name: "index_user_product_reviews_on_product_review_id"
+    t.index ["user_id"], name: "index_user_product_reviews_on_user_id"
+  end
+
+  create_table "user_products", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "product_id", null: false
+    t.datetime "purchase_date"
+    t.integer "quantity"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_user_products_on_product_id"
+    t.index ["user_id"], name: "index_user_products_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -79,4 +201,21 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_062351) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "order_items", "orders"
+  add_foreign_key "order_items", "products"
+  add_foreign_key "order_items", "users"
+  add_foreign_key "orders", "provinces"
+  add_foreign_key "orders", "shipping_types"
+  add_foreign_key "orders", "users"
+  add_foreign_key "product_categories", "categories"
+  add_foreign_key "product_categories", "products"
+  add_foreign_key "product_reviews", "products"
+  add_foreign_key "product_reviews", "users"
+  add_foreign_key "products", "users"
+  add_foreign_key "shopping_cart_items", "products"
+  add_foreign_key "shopping_cart_items", "users"
+  add_foreign_key "user_product_reviews", "product_reviews"
+  add_foreign_key "user_product_reviews", "users"
+  add_foreign_key "user_products", "products"
+  add_foreign_key "user_products", "users"
 end
