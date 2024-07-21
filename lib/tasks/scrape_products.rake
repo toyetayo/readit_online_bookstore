@@ -4,7 +4,7 @@ require 'open-uri'
 require 'logger'
 
 namespace :db do
-  task scrape_books: :environment do
+  task scrape_products: :environment do
     base_url = 'https://books.toscrape.com'
     catalog_url = '/catalogue/'
     page_url = 'https://books.toscrape.com/catalogue/page-1.html'
@@ -16,30 +16,30 @@ namespace :db do
 
     while page_url
       logger.info "Scraping page: #{page_url}"
-      response = HTTParty.get(page_url)
+      response = Typhoeus.get(page_url)
       parsed_page = Nokogiri::HTML(response.body)
 
-      parsed_page.css('.product_pod').each do |book_item|
-        book_url = book_item.css('h3 a').attr('href').value
-        full_book_url = "#{base_url}/#{catalog_url}#{book_url}"
+      parsed_page.css('.product_pod').each do |product_item|
+        product_url = product_item.css('h3 a').attr('href').value
+        full_product_url = URI.join(base_url, catalog_url, product_url).to_s
 
-        request = Typhoeus::Request.new(full_book_url)
+        request = Typhoeus::Request.new(full_product_url)
         request.on_complete do |response|
-          book_parsed_page = Nokogiri::HTML(response.body)
+          product_parsed_page = Nokogiri::HTML(response.body)
 
           # Correctly extract the image URL
-          image_url = book_parsed_page.at_css('#product_gallery img').attr('src')
+          image_url = product_parsed_page.at_css('#product_gallery img').attr('src')
           image_url = URI.join(base_url, image_url).to_s
 
           # Extract author name from the table below product description
-          author = book_parsed_page.css('table tr')[2].css('td').text
+          author = product_parsed_page.css('table tr')[2].css('td').text
 
           product = {
-            title: book_parsed_page.css('h1').text,
+            title: product_parsed_page.css('h1').text,
             author:,
-            description: book_parsed_page.at_css('#product_description + p')&.text || 'No description available',
-            price: book_parsed_page.css('.price_color').text.gsub('£', '').to_f,
-            category: book_parsed_page.css('.breadcrumb li:nth-child(3) a').text,
+            description: product_parsed_page.at_css('#product_description + p')&.text || 'No description available',
+            price: product_parsed_page.css('.price_color').text.gsub('£', '').to_f,
+            category: product_parsed_page.css('.breadcrumb li:nth-child(3) a').text,
             image_url:
           }
           products << product
@@ -50,7 +50,7 @@ namespace :db do
       end
 
       next_page = parsed_page.css('.next a').attr('href')
-      page_url = next_page ? "#{base_url}/catalogue/#{next_page.value}" : nil
+      page_url = next_page ? URI.join(base_url, catalog_url, next_page.value).to_s : nil
     end
 
     hydra.run
