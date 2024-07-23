@@ -4,6 +4,11 @@ class User < ApplicationRecord
   has_many :product_reviews, dependent: :destroy
   belongs_to :province
 
+  # Validations
+  validates :username, presence: true, uniqueness: true
+  validates :email, :encrypted_password, presence: true
+  validates :first_name, :last_name, :address, :city, :zip, :phone_number, :province_id, presence: true, on: :update
+
   devise :database_authenticatable, :registerable,
          :recoverable, :rememberable, :validatable
 

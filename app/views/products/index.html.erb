@@ -1,3 +1,4 @@
+<!-- app/views/products/index.html.erb -->
 <h1 class="text-3xl font-bold mb-4">All Books</h1>
 
 <div class="container mx-auto">
@@ -44,14 +45,17 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <% if @products.any? %>
           <% @products.each do |product| %>
-            <% if product.image.attached? %>
-              <div class="product border border-gray-300 rounded-md p-4">
-                <h2 class="text-xl font-bold mb-2"><%= link_to product.name, product_path(product), class: "text-indigo-600 hover:text-indigo-900" %></h2>
-                <p class="text-lg font-medium text-gray-700 mb-2"><%= number_to_currency(product.price) %></p>
-                <p class="text-sm text-gray-500 mb-2"><%= product.author if product.author.present? %></p>
-                <%= image_tag url_for(product.image), class: "w-full h-48 object-cover" %>
-              </div>
-            <% end %>
+            <div class="product border border-gray-300 rounded-md p-4">
+              <h2 class="text-xl font-bold mb-2"><%= link_to product.name, product_path(product), class: "text-indigo-600 hover:text-indigo-900" %></h2>
+              <p class="text-lg font-medium text-gray-700 mb-2"><%= number_to_currency(product.price) %></p>
+              <p class="text-sm text-gray-500 mb-2"><%= product.author if product.author.present? %></p>
+              <%= image_tag url_for(product.image), class: "w-full h-48 object-cover" %>
+              <%= form_with url: shopping_cart_items_path, method: :post, local: true do |f| %>
+                <%= f.hidden_field :product_id, value: product.id %>
+                <%= f.number_field :quantity, value: 1, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+                <%= f.submit 'Add to Cart', class: "mt-2 px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700" %>
+              <% end %>
+            </div>
           <% end %>
         <% else %>
           <p>No products available.</p>

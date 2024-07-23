@@ -1,50 +1,75 @@
-<h2>Edit User</h2>
+<h2 class="text-2xl font-bold mb-6 text-center">Edit <%= resource_name.to_s.humanize %></h2>
 
-<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, class: "max-w-md mx-auto p-6 bg-white rounded-md shadow-md" }) do |f| %>
   <%= devise_error_messages! %>
 
-  <div class="field">
-    <%= f.label :username %>
-    <%= f.text_field :username, autofocus: true %>
+  <div class="mb-4">
+    <%= f.label :username, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :username, autofocus: true, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :email %>
-    <%= f.email_field :email %>
+  <div class="mb-4">
+    <%= f.label :email, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.email_field :email, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :password %>
-    <%= f.password_field :password, autocomplete: "new-password" %>
-    <em>(leave blank if you don't want to change it)</em>
+  <div class="mb-4">
+    <%= f.label :first_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :first_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :password_confirmation %>
-    <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+  <div class="mb-4">
+    <%= f.label :last_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :last_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :current_password %>
-    <%= f.password_field :current_password, autocomplete: "current-password" %>
-    <em>(we need your current password to confirm your changes)</em>
+  <div class="mb-4">
+    <%= f.label :address, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :address, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :address %>
-    <%= f.text_area :address %>
+  <div class="mb-4">
+    <%= f.label :city, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :city, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="field">
-    <%= f.label :province_id, 'Province' %>
-    <%= f.collection_select :province_id, Province.all, :id, :name %>
+  <div class="mb-4">
+    <%= f.label :zip, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :zip, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
   </div>
 
-  <div class="actions">
-    <%= f.submit "Update" %>
+  <div class="mb-4">
+    <%= f.label :phone_number, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :phone_number, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :province_id, 'Province', class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password, class: "block text-gray-700 font-semibold mb-2" %> 
+    <span class="text-sm text-gray-500">(leave blank if you don't want to change it)</span>
+    <%= f.password_field :password, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password_confirmation, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :current_password, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :current_password, autocomplete: "current-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mt-6">
+    <%= f.submit "Update", class: "w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" %>
   </div>
 <% end %>
 
-<%= link_to "Back", :back %> |
-<%= link_to "Cancel my account", registration_path(resource_name), data: { confirm: "Are you sure?" }, method: :delete %> |
-<%= render "devise/shared/links" %>
+<h3 class="text-xl font-bold mt-8">Cancel my account</h3>
+<%= button_to "Cancel my account", registration_path(resource_name), method: :delete, data: { confirm: "Are you sure?" }, class: "mt-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" %>
+
+<%= link_to "Back", :back, class: "mt-4 block text-center text-indigo-600 hover:text-indigo-900" %>

@@ -15,7 +15,7 @@
       <div class="container mx-auto flex justify-between items-center">
         <h1 class="text-xl"><%= link_to "ReaditOnlineBookstore", root_path %></h1>
         <nav>
-          <ul class="flex space-x-4">
+          <ul class="flex space-x-4 items-center list-none">
             <li><%= link_to "Home", root_path, class: "text-white hover:text-gray-400" %></li>
             <li><%= link_to "Contact", contact_path, class: "text-white hover:text-gray-400" %></li>
             <li><%= link_to "About", about_path, class: "text-white hover:text-gray-400" %></li>
@@ -25,6 +25,22 @@
               <li><%= link_to "Register", new_user_registration_path, class: "text-white hover:text-gray-400" %></li>
               <li><%= link_to "Login", new_user_session_path, class: "text-white hover:text-gray-400" %></li>
             <% end %>
+            <li class="relative">
+              <%= link_to shopping_cart_items_path, class: "text-white relative" do %>
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l1.4-7H6.4L7 13zm0 0H5a1 1 0 0 1-1-1H4m13 1a1 1 0 0 0 1-1h1m-9 5a1 1 0 1 0 0-2h6a1 1 0 1 0 0-2H9a1 1 0 1 0 0 2h6zm-2 0a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2H7zm2 0a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2H9z"></path>
+                </svg>
+                <% if user_signed_in? %>
+                  <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    <%= current_user.shopping_cart_items.size %>
+                  </span>
+                <% elsif session[:shopping_cart].present? %>
+                  <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    <%= session[:shopping_cart].size %>
+                  </span>
+                <% end %>
+              <% end %>
+            </li>
           </ul>
         </nav>
       </div>
