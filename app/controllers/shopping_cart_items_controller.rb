@@ -11,11 +11,15 @@ class ShoppingCartItemsController < ApplicationController
   end
 
   def create
-    Rails.logger.debug "Parameters received: #{shopping_cart_item_params.inspect}"
+    Rails.logger.debug "Parameters received: #{params.inspect}"
 
     if user_signed_in?
       @shopping_cart_item = current_user.shopping_cart_items.find_or_initialize_by(product_id: shopping_cart_item_params[:product_id])
-      @shopping_cart_item.quantity += shopping_cart_item_params[:quantity].to_i
+      if @shopping_cart_item.new_record?
+        @shopping_cart_item.quantity = shopping_cart_item_params[:quantity].to_i
+      else
+        @shopping_cart_item.quantity += shopping_cart_item_params[:quantity].to_i
+      end
       if @shopping_cart_item.save
         redirect_to shopping_cart_items_path, notice: 'Item added to cart.'
       else

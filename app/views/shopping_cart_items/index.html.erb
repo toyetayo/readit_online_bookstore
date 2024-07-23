@@ -1,79 +1,80 @@
-<!-- app/views/shopping_cart_items/index.html.erb -->
 <h1 class="text-3xl font-bold mb-6 text-center">Shopping Cart</h1>
 
-<% if user_signed_in? %>
-  <% if @shopping_cart_items.any? %>
-    <table class="min-w-full bg-white">
-      <thead>
-        <tr>
-          <th class="py-2">Product</th>
-          <th class="py-2">Quantity</th>
-          <th class="py-2">Price</th>
-          <th class="py-2">Total</th>
-          <th class="py-2">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
+<div class="container mx-auto">
+  <% if user_signed_in? %>
+    <% if @shopping_cart_items.any? %>
+      <div class="space-y-4">
         <% @shopping_cart_items.each do |item| %>
-          <tr>
-            <td class="border px-4 py-2"><%= item.product.name %></td>
-            <td class="border px-4 py-2">
-              <%= form_with(model: item, url: shopping_cart_item_path(item), method: :patch, local: true) do |form| %>
-                <%= form.number_field :quantity, value: item.quantity, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
-                <%= form.submit 'Update', class: "ml-2 px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
-              <% end %>
-            </td>
-            <td class="border px-4 py-2"><%= number_to_currency(item.product.price) %></td>
-            <td class="border px-4 py-2"><%= number_to_currency(item.quantity * item.product.price) %></td>
-            <td class="border px-4 py-2">
-              <%= link_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
-            </td>
-          </tr>
+          <div class="border border-gray-300 rounded-md p-4 bg-white">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-4">
+                <%= image_tag item.product.image, class: "w-16 h-16 object-cover" if item.product.image.attached? %>
+                <div>
+                  <h2 class="text-xl font-bold"><%= item.product.name %></h2>
+                  <p class="text-lg"><%= number_to_currency(item.product.price) %></p>
+                </div>
+              </div>
+              <div>
+                <%= form_with(model: item, url: shopping_cart_item_path(item), method: :patch, local: true) do |form| %>
+                  <div class="flex items-center space-x-2">
+                    <%= form.number_field :quantity, value: item.quantity, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+                    <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
+                  </div>
+                <% end %>
+              </div>
+              <div>
+                <p class="text-lg font-bold"><%= number_to_currency(item.quantity * item.product.price) %></p>
+              </div>
+              <div>
+                <%= link_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
+              </div>
+            </div>
+          </div>
         <% end %>
-      </tbody>
-    </table>
+      </div>
+    <% else %>
+      <p class="text-center">Your cart is empty.</p>
+    <% end %>
   <% else %>
-    <p class="text-center">Your cart is empty.</p>
-  <% end %>
-<% else %>
-  <% if @shopping_cart_items.any? %>
-    <table class="min-w-full bg-white">
-      <thead>
-        <tr>
-          <th class="py-2">Product</th>
-          <th class="py-2">Quantity</th>
-          <th class="py-2">Price</th>
-          <th class="py-2">Total</th>
-          <th class="py-2">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
+    <% if @shopping_cart_items.any? %>
+      <div class="space-y-4">
         <% @shopping_cart_items.each do |item| %>
-          <tr>
-            <td class="border px-4 py-2"><%= Product.find(item['product_id']).name %></td>
-            <td class="border px-4 py-2">
-              <%= form_with(url: shopping_cart_item_path(item['product_id']), method: :patch, local: true) do |form| %>
-                <%= form.number_field :quantity, value: item['quantity'], min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
-                <%= form.hidden_field :product_id, value: item['product_id'] %>
-                <%= form.submit 'Update', class: "ml-2 px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
-              <% end %>
-            </td>
-            <td class="border px-4 py-2"><%= number_to_currency(Product.find(item['product_id']).price) %></td>
-            <td class="border px-4 py-2"><%= number_to_currency(item['quantity'] * Product.find(item['product_id']).price) %></td>
-            <td class="border px-4 py-2">
-              <%= link_to 'Remove', shopping_cart_item_path(item['product_id']), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
-            </td>
-          </tr>
+          <div class="border border-gray-300 rounded-md p-4 bg-white">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-4">
+                <%= image_tag Product.find(item['product_id']).image, class: "w-16 h-16 object-cover" if Product.find(item['product_id']).image.attached? %>
+                <div>
+                  <h2 class="text-xl font-bold"><%= Product.find(item['product_id']).name %></h2>
+                  <p class="text-lg"><%= number_to_currency(Product.find(item['product_id']).price) %></p>
+                </div>
+              </div>
+              <div>
+                <%= form_with(url: shopping_cart_item_path(item['product_id']), method: :patch, local: true) do |form| %>
+                  <div class="flex items-center space-x-2">
+                    <%= form.number_field :quantity, value: item['quantity'], min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+                    <%= form.hidden_field :product_id, value: item['product_id'] %>
+                    <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
+                  </div>
+                <% end %>
+              </div>
+              <div>
+                <p class="text-lg font-bold"><%= number_to_currency(item['quantity'] * Product.find(item['product_id']).price) %></p>
+              </div>
+              <div>
+                <%= link_to 'Remove', shopping_cart_item_path(item['product_id']), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
+              </div>
+            </div>
+          </div>
         <% end %>
-      </tbody>
-    </table>
-  <% else %>
-    <p class="text-center">Your cart is empty.</p>
+      </div>
+    <% else %>
+      <p class="text-center">Your cart is empty.</p>
+    <% end %>
   <% end %>
-<% end %>
 
-<% if @shopping_cart_items.any? %>
-  <div class="mt-6 text-center">
-    <%= link_to 'Checkout', new_order_path, class: 'px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700' %>
-  </div>
-<% end %>
+  <% if @shopping_cart_items.any? %>
+    <div class="mt-6 text-center">
+      <%= link_to 'Checkout', new_order_path, class: 'px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700' %>
+    </div>
+  <% end %>
+</div>
