@@ -1,0 +1,51 @@
+<h1>Checkout</h1>
+
+<%= form_with model: @order, local: true do |f| %>
+  <div>
+    <%= f.label :receiver_name %>
+    <%= f.text_field :receiver_name %>
+  </div>
+  <div>
+    <%= f.label :address %>
+    <%= f.text_field :address %>
+  </div>
+  <div>
+    <%= f.label :city %>
+    <%= f.text_field :city %>
+  </div>
+  <div>
+    <%= f.label :zip %>
+    <%= f.text_field :zip %>
+  </div>
+  <div>
+    <%= f.label :province_id, 'Province' %>
+    <%= f.collection_select :province_id, Province.all, :id, :name %>
+  </div>
+  <div>
+    <%= f.label :shipping_type_id, 'Shipping Type' %>
+    <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name %>
+  </div>
+  <%= f.submit 'Place Order' %>
+<% end %>
+
+<h2>Order Summary</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Product</th>
+      <th>Quantity</th>
+      <th>Price</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @shopping_cart_items.each do |item| %>
+      <tr>
+        <td><%= item.product.name %></td>
+        <td><%= item.quantity %></td>
+        <td><%= number_to_currency(item.product.price) %></td>
+        <td><%= number_to_currency(item.quantity * item.product.price) %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

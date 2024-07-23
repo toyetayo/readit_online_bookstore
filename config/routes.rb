@@ -6,6 +6,9 @@ Rails.application.routes.draw do
   resources :products, only: %i[index show]
   resources :categories, only: %i[index show]
   resources :pages, only: [:show]
+  resources :shopping_cart_items, only: %i[index create update destroy]
+  resources :orders, only: %i[new create show]
+  resource :user, only: %i[show edit update]
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.

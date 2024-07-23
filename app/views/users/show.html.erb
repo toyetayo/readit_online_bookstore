@@ -1,0 +1,32 @@
+<!-- app/views/users/show.html.erb -->
+
+<h1>My Account</h1>
+<p><%= link_to 'Edit Profile', edit_user_registration_path %></p>
+
+<h2>Past Orders</h2>
+<% if @user.orders.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Date</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @user.orders.each do |order| %>
+        <tr>
+          <td><%= order.id %></td>
+          <td><%= order.created_at.strftime("%Y-%m-%d") %></td>
+          <td><%= number_to_currency(order.total_price) %></td> <!-- Make sure you use the correct attribute for total -->
+          <td><%= order.status %></td>
+          <td><%= link_to 'View', order_path(order) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>You have no past orders.</p>
+<% end %>

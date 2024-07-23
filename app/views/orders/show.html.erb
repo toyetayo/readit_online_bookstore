@@ -45,5 +45,7 @@
 
 <p>
   <strong>Total:</strong>
-  <%= number_to_currency(@order.total) %>
+  <%= number_to_currency(@order.total_price) %>
 </p>
+
+<%= link_to 'Back to Orders', orders_path %>

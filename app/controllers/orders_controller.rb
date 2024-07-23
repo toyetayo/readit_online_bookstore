@@ -23,10 +23,14 @@ class OrdersController < ApplicationController
     @order = current_user.orders.find(params[:id])
   end
 
+  def past_orders
+    @orders = current_user.orders.page(params[:page])
+  end
+
   private
 
   def order_params
-    params.require(:order).permit(:address, :province_id)
+    params.require(:order).permit(:receiver_name, :address, :city, :zip, :province_id, :shipping_type_id)
   end
 
   def process_order_items
@@ -44,6 +48,6 @@ class OrdersController < ApplicationController
     tax_rates = @order.province.slice(:pst_rate, :gst_rate, :hst_rate).values.compact
     subtotal = @order.order_items.sum('quantity * price')
     total_tax = tax_rates.sum { |rate| subtotal * rate }
-    @order.update(total: subtotal + total_tax)
+    @order.update(total_price: subtotal + total_tax)
   end
 end
