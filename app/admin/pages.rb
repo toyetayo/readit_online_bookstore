@@ -14,6 +14,7 @@ ActiveAdmin.register Page do
   end
 
   filter :title
+  filter :content
   filter :created_at
   filter :updated_at
 
