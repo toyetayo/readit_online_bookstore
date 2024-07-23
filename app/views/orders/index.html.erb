@@ -1,0 +1,36 @@
+<h1>Checkout</h1>
+
+<%= form_with model: @order, local: true do |form| %>
+  <div>
+    <%= form.label :address %>
+    <%= form.text_area :address %>
+  </div>
+  <div>
+    <%= form.label :province_id, 'Province' %>
+    <%= form.collection_select :province_id, Province.all, :id, :name %>
+  </div>
+
+  <h2>Order Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Quantity</th>
+        <th>Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @shopping_cart_items.each do |item| %>
+        <tr>
+          <td><%= item.product.name %></td>
+          <td><%= item.quantity %></td>
+          <td><%= number_to_currency(item.product.price) %></td>
+          <td><%= number_to_currency(item.quantity * item.product.price) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <%= form.submit 'Place Order' %>
+<% end %>
