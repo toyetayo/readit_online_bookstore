@@ -7,6 +7,7 @@ Rails.application.routes.draw do
   resources :categories, only: %i[index show]
   resources :pages, only: [:show]
   resources :shopping_cart_items, only: %i[index create update destroy]
+
   resources :orders, only: %i[new create show]
   resource :user, only: %i[show edit update]
 

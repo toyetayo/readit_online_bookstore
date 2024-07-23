@@ -97,3 +97,5 @@ gem 'activeadmin_addons'
 group :development, :test do
   gem 'rspec-rails', '~> 5.0'
 end
+
+gem 'rails-ujs'

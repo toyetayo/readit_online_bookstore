@@ -1,5 +1,6 @@
 class ShoppingCartItemsController < ApplicationController
   before_action :authenticate_user!, except: %i[create index update destroy]
+  before_action :set_shopping_cart_item, only: %i[update destroy]
 
   def index
     @shopping_cart_items = if user_signed_in?

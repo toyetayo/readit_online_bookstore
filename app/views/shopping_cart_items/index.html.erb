@@ -6,7 +6,7 @@
       <div class="space-y-4">
         <% @shopping_cart_items.each do |item| %>
           <div class="border border-gray-300 rounded-md p-4 bg-white">
-            <div class="flex items-center justify-between">
+            <div class="space-y-2">
               <div class="flex items-center space-x-4">
                 <%= image_tag item.product.image, class: "w-16 h-16 object-cover" if item.product.image.attached? %>
                 <div>
@@ -40,7 +40,7 @@
       <div class="space-y-4">
         <% @shopping_cart_items.each do |item| %>
           <div class="border border-gray-300 rounded-md p-4 bg-white">
-            <div class="flex items-center justify-between">
+            <div class="space-y-2">
               <div class="flex items-center space-x-4">
                 <%= image_tag Product.find(item['product_id']).image, class: "w-16 h-16 object-cover" if Product.find(item['product_id']).image.attached? %>
                 <div>
@@ -61,7 +61,7 @@
                 <p class="text-lg font-bold"><%= number_to_currency(item['quantity'] * Product.find(item['product_id']).price) %></p>
               </div>
               <div>
-                <%= link_to 'Remove', shopping_cart_item_path(item['product_id']), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
+                <%= link_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
               </div>
             </div>
           </div>
