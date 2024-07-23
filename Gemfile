@@ -91,3 +91,5 @@ gem 'httparty'
 gem 'typhoeus'
 
 gem 'ruby-vips'
+
+gem 'activeadmin_addons'

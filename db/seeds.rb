@@ -3,8 +3,11 @@ require 'open-uri'
 
 puts 'Starting seeding process...'
 
-# Clear existing data (optional, but useful for resetting during development)
-ProductCategory.destroy_all
+# Clear existing data in the correct order to avoid foreign key constraints
+OrderItem.destroy_all
+ShoppingCartItem.destroy_all
+ProductReview.destroy_all
+Order.destroy_all
 Product.destroy_all
 Category.destroy_all
 User.destroy_all
@@ -16,7 +19,7 @@ AdminUser.find_or_create_by!(email: 'admin@readitapp.com') do |admin|
   admin.password_confirmation = 'password'
 end
 
-# Create Canadian provinces
+# Seed Canadian provinces
 puts 'Seeding Canadian provinces...'
 provinces = [
   { id: 'NL', name: 'Newfoundland and Labrador', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.15, qst_rate: 0.0 },
@@ -51,6 +54,14 @@ default_user = User.find_or_create_by!(email: 'user@readitapp.com') do |user|
   user.province_id = Province.all.sample.id
 end
 
+# Seed categories
+puts 'Seeding categories...'
+categories = ['Fiction', 'Non-fiction', 'Science Fiction', 'Fantasy']
+categories.each do |category_name|
+  Category.find_or_create_by!(name: category_name)
+end
+puts "Seeded #{Category.count} categories."
+
 # Seed users
 puts 'Seeding users...'
 10.times do
@@ -72,14 +83,6 @@ rescue ActiveRecord::RecordInvalid => e
   puts "Error creating user: #{e.message}"
 end
 
-# Seed categories
-puts 'Seeding categories...'
-categories = ['Fiction', 'Non-fiction', 'Science Fiction', 'Fantasy']
-categories.each do |category_name|
-  Category.find_or_create_by!(name: category_name)
-end
-puts "Seeded #{Category.count} categories."
-
 # Seed products with Faker and associated images
 puts 'Seeding products...'
 100.times do |i|
@@ -90,28 +93,35 @@ puts 'Seeding products...'
     description: Faker::Lorem.paragraph(sentence_count: 5),
     price: Faker::Commerce.price(range: 10.0..100.0),
     number_in_stock: Faker::Number.between(from: 1, to: 100),
-    user: default_user
+    category_id: category.id
   )
-  ProductCategory.create!(product:, category:)
-  puts "Created product #{i + 1}: #{product.name} with category: #{category.name}"
+  puts "Created product #{i + 1}: #{product.name}"
 
   # Attach a sample image to the product (using a placeholder image service)
   retries = 3
   begin
     file = URI.open('https://via.placeholder.com/150')
-    product.image.attach(io: file, filename: "#{product.name.parameterize}.jpg")
-  rescue OpenURI::HTTPError => e
+    product.image.attach(io: file, filename: "#{product.name}.jpg")
+  rescue StandardError => e
+    puts "Failed to attach image for product #{product.name}. Retrying... (#{retries} retries left)"
     retries -= 1
-    if retries > 0
-      puts "Retrying image download for product #{i + 1} due to error: #{e.message}"
-      retry
-    else
-      puts "Failed to attach image for product #{i + 1} after multiple attempts: #{e.message}"
-    end
+    retry if retries > 0
   end
-rescue ActiveRecord::RecordInvalid => e
-  puts "Error creating product #{i + 1}: #{e.message}"
 end
 puts "Seeded #{Product.count} products."
 
-puts 'Database seeding with custom data completed!'
+# Create pages for About Us and Contact Us
+puts 'Seeding pages...'
+Page.find_or_create_by!(slug: 'about') do |page|
+  page.title = 'About Us'
+  page.content = 'This is the about page content.'
+end
+
+Page.find_or_create_by!(slug: 'contact') do |page|
+  page.title = 'Contact Us'
+  page.content = 'This is the contact page content.'
+end
+
+puts "Seeded pages: #{Page.count}"
+
+puts 'Seeding process completed.'

@@ -69,10 +69,8 @@ namespace :db do
         description: product_data[:description],
         price: product_data[:price],
         number_in_stock: rand(1..100),
-        user: User.find_by(email: 'user@readitapp.com') # Assuming a default user
+        category:
       )
-
-      ProductCategory.create!(product:, category:)
 
       # Attach the image using Active Storage
       begin

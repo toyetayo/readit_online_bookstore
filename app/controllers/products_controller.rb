@@ -1,6 +1,6 @@
 class ProductsController < ApplicationController
   def index
-    @categories = Category.page(params[:category_page])
+    @categories = Category.joins(:products).distinct.page(params[:category_page])
     @products = Product.with_attached_image
 
     if params[:search].present?
@@ -8,10 +8,9 @@ class ProductsController < ApplicationController
       category_id = params[:search][:category_id]
 
       @products = if category_id.present?
-                    @products.where(category_id:).where('name LIKE ? OR description LIKE ?',
-                                                        "%#{keyword}%", "%#{keyword}%")
+                    @products.search_by_category(keyword, category_id)
                   else
-                    @products.where('name LIKE ? OR description LIKE ?', "%#{keyword}%", "%#{keyword}%")
+                    @products.search_by_keyword(keyword)
                   end
     end
 
@@ -23,12 +22,16 @@ class ProductsController < ApplicationController
         @products = @products.new_products
       when 'recently_updated'
         @products = @products.recently_updated
+        Rails.logger.debug("Recently Updated Products: #{@products.pluck(:updated_at, :name).inspect}")
       end
     end
 
-    @products = @products.offset(50).page(params[:page])
+    if params[:category_id].present?
+      @selected_category = Category.find(params[:category_id])
+      @products = @products.where(category_id: @selected_category.id)
+    end
 
-    Rails.logger.debug("Loaded Products: #{@products.map(&:name).inspect}")
+    @products = @products.page(params[:page])
   end
 
   def show

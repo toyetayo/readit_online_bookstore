@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_22_192713) do
   create_table "active_admin_comments", force: :cascade do |t|
     t.string "namespace"
     t.text "body"
@@ -57,8 +57,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
     t.string "reset_password_token"
-    t.datetime "reset_password_sent_at"
-    t.datetime "remember_created_at"
+    t.datetime "reset_password_sent_at", precision: nil
+    t.datetime "remember_created_at", precision: nil
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admin_users_on_email", unique: true
@@ -66,7 +66,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
   end
 
   create_table "categories", force: :cascade do |t|
-    t.string "name"
+    t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -107,6 +107,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
     t.text "content"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "slug"
   end
 
   create_table "product_categories", force: :cascade do |t|
@@ -132,23 +133,23 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
   end
 
   create_table "products", force: :cascade do |t|
-    t.string "name"
-    t.string "author"
-    t.integer "number_in_stock"
-    t.decimal "price"
-    t.integer "user_id", null: false
+    t.string "name", null: false
+    t.string "author", null: false
+    t.text "description", null: false
+    t.decimal "price", precision: 10, scale: 2, null: false
+    t.integer "number_in_stock", null: false
+    t.integer "category_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.text "description"
-    t.index ["user_id"], name: "index_products_on_user_id"
+    t.index ["category_id"], name: "index_products_on_category_id"
   end
 
   create_table "provinces", id: :string, force: :cascade do |t|
-    t.string "name"
-    t.decimal "gst_rate"
-    t.decimal "pst_rate"
-    t.decimal "hst_rate"
-    t.decimal "qst_rate"
+    t.string "name", null: false
+    t.decimal "gst_rate", precision: 5, scale: 4, null: false
+    t.decimal "pst_rate", precision: 5, scale: 4, null: false
+    t.decimal "hst_rate", precision: 5, scale: 4, null: false
+    t.decimal "qst_rate", precision: 5, scale: 4, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -201,6 +202,11 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
     t.string "reset_password_token"
     t.datetime "reset_password_sent_at"
     t.datetime "remember_created_at"
+    t.integer "sign_in_count", default: 0, null: false
+    t.datetime "current_sign_in_at"
+    t.datetime "last_sign_in_at"
+    t.string "current_sign_in_ip"
+    t.string "last_sign_in_ip"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "first_name"
@@ -216,19 +222,19 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_073957) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "order_items", "orders"
-  add_foreign_key "order_items", "products"
+  add_foreign_key "order_items", "orders", on_delete: :cascade
+  add_foreign_key "order_items", "products", on_delete: :cascade
   add_foreign_key "order_items", "users"
   add_foreign_key "orders", "provinces"
   add_foreign_key "orders", "shipping_types"
-  add_foreign_key "orders", "users"
+  add_foreign_key "orders", "users", on_delete: :cascade
   add_foreign_key "product_categories", "categories"
   add_foreign_key "product_categories", "products"
-  add_foreign_key "product_reviews", "products"
-  add_foreign_key "product_reviews", "users"
-  add_foreign_key "products", "users"
-  add_foreign_key "shopping_cart_items", "products"
-  add_foreign_key "shopping_cart_items", "users"
+  add_foreign_key "product_reviews", "products", on_delete: :cascade
+  add_foreign_key "product_reviews", "users", on_delete: :cascade
+  add_foreign_key "products", "categories"
+  add_foreign_key "shopping_cart_items", "products", on_delete: :cascade
+  add_foreign_key "shopping_cart_items", "users", on_delete: :cascade
   add_foreign_key "user_product_reviews", "product_reviews"
   add_foreign_key "user_product_reviews", "users"
   add_foreign_key "user_products", "products"

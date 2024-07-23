@@ -1,0 +1,66 @@
+<h1 class="text-3xl font-bold mb-4">All Books</h1>
+
+<div class="container mx-auto">
+  <div class="flex justify-center mb-4">
+    <div class="search-form flex items-center space-x-4 w-full max-w-3xl">
+      <%= form_with url: products_path, method: :get, local: true, class: "flex items-center w-full" do %>
+        <div class="flex-grow">
+          <%= label_tag :keyword, "Keyword", class: "block text-lg font-medium text-gray-700" %>
+          <%= text_field_tag "search[keyword]", params.dig(:search, :keyword), class: "block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+        </div>
+        <div class="w-1/4">
+          <%= label_tag :category_id, "Category", class: "block text-lg font-medium text-gray-700" %>
+          <%= select_tag "search[category_id]", options_from_collection_for_select(@categories, :id, :name, params.dig(:search, :category_id)), include_blank: "All Categories", class: "block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+        </div>
+        <div>
+          <%= submit_tag "Search", class: "px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="filters mb-4">
+    <%= link_to 'All', products_path, class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'On Sale', products_path(filter: 'on_sale'), class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'New', products_path(filter: 'new'), class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'Recently Updated', products_path(filter: 'recently_updated'), class: "text-indigo-600 hover:text-indigo-900" %>
+  </div>
+
+  <div class="flex flex-wrap">
+    <div class="w-full lg:w-1/4 p-4">
+      <h2 class="text-2xl font-bold mb-4">Categories</h2>
+      <ul>
+        <% @categories.each do |category| %>
+          <li><%= link_to category.name, products_path(category_id: category.id, category_page: params[:category_page]), class: "text-indigo-600 hover:text-indigo-900" %></li>
+        <% end %>
+      </ul>
+      <%= paginate @categories, param_name: 'category_page', class: "mt-4" %>
+    </div>
+
+    <div class="w-full lg:w-3/4 p-4">
+      <% if @selected_category.present? %>
+        <h2 class="text-2xl font-bold mb-4"><%= @selected_category.name %> Books</h2>
+      <% end %>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <% if @products.any? %>
+          <% @products.each do |product| %>
+            <% if product.image.attached? %>
+              <div class="product border border-gray-300 rounded-md p-4">
+                <h2 class="text-xl font-bold mb-2"><%= link_to product.name, product_path(product), class: "text-indigo-600 hover:text-indigo-900" %></h2>
+                <p class="text-lg font-medium text-gray-700 mb-2"><%= number_to_currency(product.price) %></p>
+                <p class="text-sm text-gray-500 mb-2"><%= product.author if product.author.present? %></p>
+                <%= image_tag url_for(product.image), class: "w-full h-48 object-cover" %>
+              </div>
+            <% end %>
+          <% end %>
+        <% else %>
+          <p>No products available.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <%= paginate @products, class: "mt-8" %>
+  </div>
+</div>
