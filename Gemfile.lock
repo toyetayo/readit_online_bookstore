@@ -123,8 +123,6 @@ GEM
       rack-test (>= 0.6.3)
       regexp_parser (>= 1.5, < 3.0)
       xpath (~> 3.2)
-    ckeditor (5.1.3)
-      orm_adapter (~> 0.5.0)
     concurrent-ruby (1.3.3)
     connection_pool (2.4.1)
     crass (1.0.6)
@@ -405,6 +403,8 @@ GEM
     time (0.3.0)
       date
     timeout (0.4.1)
+    trix (0.10.1)
+      rails
     turbo-rails (2.0.6)
       actionpack (>= 6.0.0)
       activejob (>= 6.0.0)
@@ -449,7 +449,6 @@ DEPENDENCIES
   activeadmin_quill_editor
   bootsnap
   capybara
-  ckeditor
   debug
   devise
   faker (~> 3.4)
@@ -474,6 +473,7 @@ DEPENDENCIES
   stimulus-rails
   stripe
   tailwindcss-rails
+  trix
   turbo-rails
   typhoeus
   tzinfo-data
