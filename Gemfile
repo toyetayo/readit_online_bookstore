@@ -98,5 +98,6 @@ group :development, :test do
   gem 'rspec-rails', '~> 5.0'
 end
 
+gem 'hotwire-rails'
 gem 'rails-ujs'
 gem 'trix'

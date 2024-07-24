@@ -1,54 +1,34 @@
 <h1 class="text-3xl font-bold mb-6 text-center">Shopping Cart</h1>
 
 <div class="container mx-auto">
-  <% if user_signed_in? %>
-    <% if @shopping_cart_items.any? %>
-      <div class="space-y-4">
-        <% @shopping_cart_items.each do |item| %>
-          <div class="border border-gray-300 rounded-md p-4 bg-white">
-            <div class="space-y-2">
-              <div class="flex items-center space-x-4">
-                <%= image_tag item.product.image, class: "w-16 h-16 object-cover" if item.product.image.attached? %>
-                <div>
-                  <h2 class="text-xl font-bold"><%= item.product.name %></h2>
-                  <p class="text-lg"><%= number_to_currency(item.product.price) %></p>
-                </div>
-              </div>
+  <% if @shopping_cart_items.any? %>
+    <div class="space-y-4">
+      <% @shopping_cart_items.each do |item| %>
+        <% product = item.product || Product.find_by(id: item['product_id']) %>
+        <div class="border border-gray-300 rounded-md p-4 bg-white">
+          <div class="space-y-2">
+            <div class="flex items-center space-x-4">
+              <% if product&.image&.attached? %>
+                <%= image_tag product.image, class: "w-16 h-16 object-cover" %>
+              <% end %>
               <div>
+                <% if product %>
+                  <h2 class="text-xl font-bold"><%= product.name %></h2>
+                  <p class="text-lg"><%= number_to_currency(product.price) %></p>
+                <% else %>
+                  <h2 class="text-xl font-bold">Product not found</h2>
+                <% end %>
+              </div>
+            </div>
+            <div>
+              <% if user_signed_in? %>
                 <%= form_with(model: item, url: shopping_cart_item_path(item), method: :patch, local: true) do |form| %>
                   <div class="flex items-center space-x-2">
                     <%= form.number_field :quantity, value: item.quantity, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
                     <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
                   </div>
                 <% end %>
-              </div>
-              <div>
-                <p class="text-lg font-bold"><%= number_to_currency(item.quantity * item.product.price) %></p>
-              </div>
-              <div>
-                <%= link_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
-              </div>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <p class="text-center">Your cart is empty.</p>
-    <% end %>
-  <% else %>
-    <% if @shopping_cart_items.any? %>
-      <div class="space-y-4">
-        <% @shopping_cart_items.each do |item| %>
-          <div class="border border-gray-300 rounded-md p-4 bg-white">
-            <div class="space-y-2">
-              <div class="flex items-center space-x-4">
-                <%= image_tag Product.find(item['product_id']).image, class: "w-16 h-16 object-cover" if Product.find(item['product_id']).image.attached? %>
-                <div>
-                  <h2 class="text-xl font-bold"><%= Product.find(item['product_id']).name %></h2>
-                  <p class="text-lg"><%= number_to_currency(Product.find(item['product_id']).price) %></p>
-                </div>
-              </div>
-              <div>
+              <% else %>
                 <%= form_with(url: shopping_cart_item_path(item['product_id']), method: :patch, local: true) do |form| %>
                   <div class="flex items-center space-x-2">
                     <%= form.number_field :quantity, value: item['quantity'], min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
@@ -56,20 +36,27 @@
                     <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
                   </div>
                 <% end %>
-              </div>
-              <div>
-                <p class="text-lg font-bold"><%= number_to_currency(item['quantity'] * Product.find(item['product_id']).price) %></p>
-              </div>
-              <div>
-                <%= link_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
-              </div>
+              <% end %>
+            </div>
+            <div>
+              <% if user_signed_in? %>
+                <% total_price = item.total_price_with_tax %>
+                <% Rails.logger.debug "User signed in: item: #{item.inspect}, product: #{product.inspect}, total_price_with_tax: #{total_price}" %>
+              <% else %>
+                <% total_price = item['quantity'].to_i * product.price %>
+                <% Rails.logger.debug "User not signed in: item: #{item.inspect}, product: #{product.inspect}, total_price: #{total_price}" %>
+              <% end %>
+              <p class="text-lg font-bold">Total: <%= number_to_currency(total_price) %></p>
+            </div>
+            <div>
+              <%= button_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
             </div>
           </div>
-        <% end %>
-      </div>
-    <% else %>
-      <p class="text-center">Your cart is empty.</p>
-    <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-center">Your cart is empty.</p>
   <% end %>
 
   <% if @shopping_cart_items.any? %>

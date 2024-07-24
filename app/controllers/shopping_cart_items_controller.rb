@@ -32,12 +32,14 @@ class ShoppingCartItemsController < ApplicationController
 
   def update
     if user_signed_in?
+      Rails.logger.debug "Updating shopping cart item: #{shopping_cart_item_params.inspect}"
       if @shopping_cart_item.update(shopping_cart_item_params)
         redirect_to shopping_cart_items_path, notice: 'Cart updated.'
       else
-        render :index, alert: 'Unable to update cart.'
+        redirect_to shopping_cart_items_path, alert: 'Unable to update cart.'
       end
     else
+      Rails.logger.debug "Updating session cart item: #{shopping_cart_item_params.inspect}"
       update_session_cart(shopping_cart_item_params)
       redirect_to shopping_cart_items_path, notice: 'Cart updated.'
     end

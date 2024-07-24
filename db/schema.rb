@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_24_064345) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_24_220930) do
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
     t.text "body"
@@ -73,6 +73,11 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_24_064345) do
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admin_users_on_email", unique: true
     t.index ["reset_password_token"], name: "index_admin_users_on_reset_password_token", unique: true
+  end
+
+  create_table "carts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "categories", force: :cascade do |t|
@@ -187,12 +192,13 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_24_064345) do
     t.integer "product_id", null: false
     t.decimal "price"
     t.datetime "date_added"
-    t.integer "user_id", null: false
     t.integer "quantity", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "cart_id"
+    t.integer "user_id"
+    t.index ["cart_id"], name: "index_shopping_cart_items_on_cart_id"
     t.index ["product_id"], name: "index_shopping_cart_items_on_product_id"
-    t.index ["user_id"], name: "index_shopping_cart_items_on_user_id"
   end
 
   create_table "user_product_reviews", force: :cascade do |t|
@@ -257,7 +263,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_24_064345) do
   add_foreign_key "product_reviews", "users", on_delete: :cascade
   add_foreign_key "products", "categories"
   add_foreign_key "shopping_cart_items", "products", on_delete: :cascade
-  add_foreign_key "shopping_cart_items", "users", on_delete: :cascade
+  add_foreign_key "shopping_cart_items", "users"
   add_foreign_key "user_product_reviews", "product_reviews"
   add_foreign_key "user_product_reviews", "users"
   add_foreign_key "user_products", "products"
