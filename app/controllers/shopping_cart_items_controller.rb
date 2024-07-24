@@ -1,5 +1,5 @@
 class ShoppingCartItemsController < ApplicationController
-  before_action :authenticate_user!, except: %i[create index update destroy]
+  before_action :authenticate_user!, except: %i[index create update destroy]
   before_action :set_shopping_cart_item, only: %i[update destroy]
 
   def index
@@ -12,8 +12,6 @@ class ShoppingCartItemsController < ApplicationController
   end
 
   def create
-    Rails.logger.debug "Parameters received: #{params.inspect}"
-
     if user_signed_in?
       @shopping_cart_item = current_user.shopping_cart_items.find_or_initialize_by(product_id: shopping_cart_item_params[:product_id])
       if @shopping_cart_item.new_record?
@@ -34,7 +32,6 @@ class ShoppingCartItemsController < ApplicationController
 
   def update
     if user_signed_in?
-      @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
       if @shopping_cart_item.update(shopping_cart_item_params)
         redirect_to shopping_cart_items_path, notice: 'Cart updated.'
       else
@@ -48,7 +45,6 @@ class ShoppingCartItemsController < ApplicationController
 
   def destroy
     if user_signed_in?
-      @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
       @shopping_cart_item.destroy
     else
       session[:shopping_cart].reject! { |item| item['product_id'] == params[:id].to_i }
@@ -76,5 +72,9 @@ class ShoppingCartItemsController < ApplicationController
     session[:shopping_cart].each do |item|
       item['quantity'] = item_params[:quantity].to_i if item['product_id'] == item_params[:product_id].to_i
     end
+  end
+
+  def set_shopping_cart_item
+    @shopping_cart_item = current_user.shopping_cart_items.find(params[:id]) if user_signed_in?
   end
 end
