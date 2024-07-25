@@ -48,30 +48,5 @@
     <main class="container mx-auto px-5 flex">
       <%= yield %>
     </main>
-    
-    <!-- Custom JavaScript -->
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('a[data-method="delete"]').forEach(link => {
-          link.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (confirm(link.getAttribute('data-confirm'))) {
-              fetch(link.getAttribute('href'), {
-                method: 'DELETE',
-                headers: {
-                  'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                }
-              }).then(response => {
-                if (response.ok) {
-                  window.location.reload(); // Reload the page or handle the response accordingly
-                } else {
-                  alert('An error occurred. Please try again.');
-                }
-              });
-            }
-          });
-        });
-      });
-    </script>
   </body>
 </html>

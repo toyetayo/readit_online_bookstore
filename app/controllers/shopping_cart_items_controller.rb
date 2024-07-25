@@ -36,6 +36,7 @@ class ShoppingCartItemsController < ApplicationController
       if @shopping_cart_item.update(shopping_cart_item_params)
         redirect_to shopping_cart_items_path, notice: 'Cart updated.'
       else
+        Rails.logger.debug "Failed to update cart item: #{@shopping_cart_item.errors.full_messages}"
         redirect_to shopping_cart_items_path, alert: 'Unable to update cart.'
       end
     else
@@ -47,9 +48,12 @@ class ShoppingCartItemsController < ApplicationController
 
   def destroy
     if user_signed_in?
+      Rails.logger.debug "Destroying shopping cart item: #{@shopping_cart_item.inspect}"
       @shopping_cart_item.destroy
     else
-      session[:shopping_cart].reject! { |item| item['product_id'] == params[:id].to_i }
+      product_id = params[:id].to_i
+      Rails.logger.debug "Destroying session cart item with product_id: #{product_id}"
+      session[:shopping_cart].reject! { |item| item['product_id'] == product_id }
     end
     redirect_to shopping_cart_items_path, notice: 'Item removed from cart.'
   end
@@ -77,6 +81,9 @@ class ShoppingCartItemsController < ApplicationController
   end
 
   def set_shopping_cart_item
-    @shopping_cart_item = current_user.shopping_cart_items.find(params[:id]) if user_signed_in?
+    return unless user_signed_in?
+
+    @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
+    Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}"
   end
 end
