@@ -8,6 +8,7 @@ class Product < ApplicationRecord
   has_one_attached :image
 
   validates :name, :author, :description, :price, :number_in_stock, presence: true
+  validates :price, presence: true, numericality: { greater_than: 0 }
 
   scope :new_products, -> { where('created_at >= ?', 3.days.ago) }
   scope :recently_updated, -> { where('updated_at >= ?', 3.days.ago) }

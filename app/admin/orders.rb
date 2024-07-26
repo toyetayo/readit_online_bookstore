@@ -1,6 +1,40 @@
 ActiveAdmin.register Order do
+  controller do
+    def new
+      @order = Order.new
+      3.times { @order.order_items.build }
+      new!
+    end
+
+    def edit
+      @order = Order.find(params[:id])
+      # Ensure there are always at least one order_items built
+      if @order.order_items.empty?
+        @order.order_items.build
+      else
+        @order.order_items.each { |item| item.build_product if item.product.nil? }
+      end
+      edit!
+    end
+
+    def update
+      @order = Order.find(params[:id])
+      @order.update(order_params)
+      redirect_to admin_order_path(@order)
+    end
+
+    private
+
+    def order_params
+      params.require(:order).permit(
+        :user_id, :receiver_name, :address, :city, :zip, :province_id, :shipping_type_id, :purchase_date,
+        :status, :subtotal, :total_price, order_items_attributes: %i[id product_id quantity price _destroy]
+      )
+    end
+  end
+
   permit_params :user_id, :receiver_name, :address, :city, :zip, :province_id, :shipping_type_id, :purchase_date,
-                :status, order_items_attributes: %i[id product_id quantity price _destroy]
+                :status, :subtotal, :total_price, order_items_attributes: %i[id product_id quantity price _destroy]
 
   index do
     selectable_column
@@ -13,7 +47,9 @@ ActiveAdmin.register Order do
     column :province
     column :shipping_type
     column :purchase_date
-    column :status
+    column :status do |order|
+      status_tag order.status, class: order.status
+    end
     column :total_price
     actions
   end
@@ -37,7 +73,9 @@ ActiveAdmin.register Order do
       row :province
       row :shipping_type
       row :purchase_date
-      row :status
+      row :status do |order|
+        status_tag order.status, class: order.status
+      end
       row :total_price
       row :created_at
       row :updated_at
@@ -67,11 +105,11 @@ ActiveAdmin.register Order do
       f.input :province, as: :select, collection: Province.all.pluck(:name, :id)
       f.input :shipping_type, as: :select, collection: ShippingType.all.pluck(:name, :id)
       f.input :purchase_date, as: :datepicker
-      f.input :status, as: :select, collection: %w[Pending Paid Shipped Delivered]
+      f.input :status, as: :select, collection: Order.statuses.keys
     end
 
     f.inputs 'Order Items' do
-      f.has_many :order_items, allow_destroy: true do |oi|
+      f.has_many :order_items, allow_destroy: true, new_record: true do |oi|
         oi.input :product
         oi.input :quantity
         oi.input :price
@@ -81,12 +119,21 @@ ActiveAdmin.register Order do
     f.actions
   end
 
+  member_action :mark_as_paid, method: :put do
+    resource.update(status: 'paid')
+    redirect_to resource_path, notice: 'Order marked as paid'
+  end
+
   member_action :mark_as_shipped, method: :put do
-    resource.update(status: 'Shipped')
+    resource.update(status: 'shipped')
     redirect_to resource_path, notice: 'Order marked as shipped'
   end
 
+  action_item :mark_as_paid, only: :show do
+    link_to 'Mark as Paid', mark_as_paid_admin_order_path(order), method: :put if order.status == 'pending'
+  end
+
   action_item :mark_as_shipped, only: :show do
-    link_to 'Mark as Shipped', mark_as_shipped_admin_order_path(order), method: :put if order.status == 'Paid'
+    link_to 'Mark as Shipped', mark_as_shipped_admin_order_path(order), method: :put if order.status == 'paid'
   end
 end

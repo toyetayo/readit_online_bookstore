@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 ActiveAdmin.register_page 'Dashboard' do
   menu priority: 1, label: proc { I18n.t('active_admin.dashboard') }
 
@@ -30,7 +28,7 @@ ActiveAdmin.register_page 'Dashboard' do
             li "Total Categories: #{Category.count}"
             li "Total Reviews: #{ProductReview.count}"
             li "Total Orders: #{Order.count}"
-            li "Total Delivered Orders: #{Order.where(status: 'delivered').count}"
+            li "Total Shipped Orders: #{Order.where(status: 'shipped').count}"
             li "Total Pending Orders: #{Order.where(status: 'pending').count}"
             li "Total Registered Customers: #{User.count}"
           end
@@ -74,6 +72,56 @@ ActiveAdmin.register_page 'Dashboard' do
             column('ID') { |user| link_to user.id, admin_user_path(user) }
             column('Email') { |user| user.email }
             column('Full Name') { |user| "#{user.first_name} #{user.last_name}" }
+          end
+        end
+      end
+    end
+
+    # All Customers with Orders panel
+    columns do
+      column do
+        panel 'All Customers with Orders' do
+          table_for User.joins(:orders).distinct.order('users.created_at desc') do
+            column('Customer') { |user| link_to user.email, admin_user_path(user) }
+            column('Total Orders') { |user| user.orders.count }
+            column('Total Amount Spent') { |user| number_to_currency user.orders.sum(:total_price) }
+          end
+        end
+      end
+    end
+
+    # Detailed Orders panel
+    columns do
+      column do
+        panel 'Detailed Orders' do
+          table_for Order.includes(:order_items, :user, :province).order('created_at desc').limit(10) do
+            column('Order ID') { |order| link_to order.id, admin_order_path(order) }
+            column('Customer') do |order|
+              order.user ? link_to(order.user.email, admin_user_path(order.user)) : 'No Customer'
+            end
+            column('Order Date') { |order| order.created_at }
+            column('Status') { |order| status_tag(order.status) }
+            column('Total Price') { |order| number_to_currency(order.total_price) }
+            column('Products') do |order|
+              order.order_items.map { |item| item.product.name }.join(', ')
+            end
+            column('Taxes') do |order|
+              if order.subtotal.present? && order.province.present?
+                province = order.province
+                gst = order.subtotal * province.gst_rate
+                pst = order.subtotal * province.pst_rate
+                hst = order.subtotal * province.hst_rate
+                qst = order.subtotal * province.qst_rate
+                ul do
+                  li "GST: #{number_to_currency(gst)}"
+                  li "PST: #{number_to_currency(pst)}"
+                  li "HST: #{number_to_currency(hst)}"
+                  li "QST: #{number_to_currency(qst)}"
+                end
+              else
+                'N/A'
+              end
+            end
           end
         end
       end

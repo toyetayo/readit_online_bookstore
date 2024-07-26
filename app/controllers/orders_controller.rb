@@ -2,7 +2,7 @@ class OrdersController < ApplicationController
   before_action :authenticate_user!
 
   def index
-    @orders = current_user.orders
+    @orders = current_user.orders.includes(:order_items, :province)
   end
 
   def new
@@ -23,7 +23,7 @@ class OrdersController < ApplicationController
 
     @order = Order.new(order_params)
     @order.user = current_user
-    @order.status = 'Pending'
+    @order.status = 'new'
     @order.subtotal = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
     @shopping_cart_total = @order.subtotal
 
@@ -35,7 +35,11 @@ class OrdersController < ApplicationController
         @order.order_items.create(product: item.product, quantity: item.quantity, price: item.product.price)
       end
       current_user.shopping_cart_items.destroy_all
-      redirect_to @order, notice: 'Order was successfully created.'
+
+      # Simulating payment confirmation
+      @order.update(status: 'paid')
+
+      redirect_to @order, notice: 'Order was successfully created and paid.'
     else
       flash[:alert] = 'Order could not be created. Please try again.'
       render :new

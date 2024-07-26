@@ -9,7 +9,11 @@ Rails.application.routes.draw do
   resources :pages, only: [:show]
 
   # Ensure all RESTful routes for orders are defined
-  resources :orders, only: %i[index new create show]
+  resources :orders, only: %i[index new create show] do
+    member do
+      patch 'update_status', to: 'orders#update_status'
+    end
+  end
 
   resource :user, only: %i[show edit update]
 

@@ -47,10 +47,28 @@
   </table>
 </div>
 
-<p class="flex justify-between items-center bg-white p-6 rounded-lg shadow-md mt-4">
-  <strong>Total:</strong>
-  <span><%= number_to_currency(@order.total_price) %></span>
-</p>
+<div class="bg-white p-6 rounded-lg shadow-md mt-4 space-y-2">
+  <p class="flex justify-between items-center">
+    <strong>GST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.gst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>PST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.pst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>HST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.hst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>QST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.qst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Total Price:</strong>
+    <span><%= number_to_currency(@order.total_price) %></span>
+  </p>
+</div>
 
 <div class="mt-4">
   <%= link_to 'Back to Orders', orders_path, class: "text-blue-600 hover:text-blue-900" %>
