@@ -1,3 +1,4 @@
+# app/models/order.rb
 class Order < ApplicationRecord
   belongs_to :user
   belongs_to :province
@@ -10,9 +11,19 @@ class Order < ApplicationRecord
 
   enum status: { pending: 'pending', paid: 'paid', shipped: 'shipped' }
 
-  accepts_nested_attributes_for :order_items, allow_destroy: true, reject_if: :all_blank
-
   before_validation :set_defaults
+  before_save :calculate_total_price
+
+  def calculate_total_price
+    return unless subtotal.present? && province.present?
+
+    gst = subtotal * province.gst_rate
+    pst = subtotal * province.pst_rate
+    hst = subtotal * province.hst_rate
+    qst = subtotal * province.qst_rate
+
+    self.total_price = subtotal + gst + pst + hst + qst
+  end
 
   def self.ransackable_associations(auth_object = nil)
     %w[order_items province user shipping_type]

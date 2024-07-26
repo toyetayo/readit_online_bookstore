@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_26_034832) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_26_054911) do
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
     t.text "body"
@@ -106,6 +106,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_034832) do
     t.decimal "price"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "product_price", precision: 10, scale: 2, default: "0.0", null: false
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_id"], name: "index_order_items_on_product_id"
     t.index ["user_id"], name: "index_order_items_on_user_id"
@@ -125,6 +126,10 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_034832) do
     t.datetime "updated_at", null: false
     t.decimal "subtotal"
     t.decimal "total_price"
+    t.decimal "gst_rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.decimal "pst_rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.decimal "hst_rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.decimal "qst_rate", precision: 5, scale: 4, default: "0.0", null: false
     t.index ["province_id"], name: "index_orders_on_province_id"
     t.index ["shipping_type_id"], name: "index_orders_on_shipping_type_id"
     t.index ["user_id"], name: "index_orders_on_user_id"

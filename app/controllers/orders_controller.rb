@@ -27,12 +27,19 @@ class OrdersController < ApplicationController
     @order.subtotal = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
     @shopping_cart_total = @order.subtotal
 
+    province = current_user.province
+    @order.gst_rate = province.gst_rate
+    @order.pst_rate = province.pst_rate
+    @order.hst_rate = province.hst_rate
+    @order.qst_rate = province.qst_rate
+
     calculate_taxes
     @order.total_price = @order.subtotal + @gst + @pst + @hst + @qst
 
     if @order.save
       @shopping_cart_items.each do |item|
-        @order.order_items.create(product: item.product, quantity: item.quantity, price: item.product.price)
+        @order.order_items.create(product: item.product, quantity: item.quantity, price: item.product.price,
+                                  product_price: item.product.price)
       end
       current_user.shopping_cart_items.destroy_all
 

@@ -2,11 +2,13 @@ class OrderItem < ApplicationRecord
   belongs_to :order
   belongs_to :product
 
-  validates :product, presence: true
-  validates :quantity, presence: true
-  validates :price, presence: true
+  validates :product, :quantity, :price, :product_price, presence: true
 
-  def total_price
-    quantity * price
+  before_validation :set_product_price
+
+  private
+
+  def set_product_price
+    self.product_price = product.price if new_record?
   end
 end

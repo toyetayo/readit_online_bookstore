@@ -13,6 +13,7 @@ ActiveAdmin.register_page 'Dashboard' do
             li link_to('Product Reviews', admin_product_reviews_path)
             li link_to('Admin Users', admin_admin_users_path)
             li link_to('Users', admin_users_path)
+            li link_to('Provinces', admin_provinces_path) # Added link to Provinces
           end
         end
       end
