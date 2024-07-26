@@ -12,6 +12,7 @@ Product.destroy_all
 Category.destroy_all
 User.destroy_all
 Province.destroy_all
+ShippingType.destroy_all
 
 # Ensure the existence of an admin user
 AdminUser.find_or_create_by!(email: 'admin@readitapp.com') do |admin|
@@ -41,10 +42,23 @@ provinces.each do |province|
 end
 puts "Provinces seeded: #{Province.count}"
 
+# Seed Shipping Types
+puts 'Seeding shipping types...'
+shipping_types = [
+  { name: 'Standard', price: 5.00, delivery_days: 5 },
+  { name: 'Express', price: 15.00, delivery_days: 2 },
+  { name: 'Overnight', price: 25.00, delivery_days: 1 }
+]
+shipping_types.each do |shipping_type|
+  ShippingType.find_or_create_by!(shipping_type)
+end
+puts "Seeded #{ShippingType.count} shipping types."
+
 # Create a default user for associating products
 default_user = User.find_or_create_by!(email: 'user@readitapp.com') do |user|
   user.password = 'password'
   user.password_confirmation = 'password'
+  user.username = Faker::Internet.username
   user.first_name = Faker::Name.first_name
   user.last_name = Faker::Name.last_name
   user.address = Faker::Address.street_address
@@ -75,6 +89,7 @@ puts 'Seeding users...'
     email: Faker::Internet.email,
     phone_number: Faker::PhoneNumber.phone_number,
     province_id: province.id,
+    username: Faker::Internet.username,
     password: 'password',
     password_confirmation: 'password'
   )

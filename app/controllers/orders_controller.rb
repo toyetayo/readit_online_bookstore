@@ -1,30 +1,52 @@
 class OrdersController < ApplicationController
   before_action :authenticate_user!
 
+  def index
+    @orders = current_user.orders
+  end
+
   def new
-    @order = current_user.orders.build
-    @shopping_cart_items = current_user.shopping_cart_items.includes(:product)
+    @order = Order.new
+    @shopping_cart_items = current_user.shopping_cart_items
+    @shopping_cart_total = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
+    calculate_taxes
   end
 
   def create
-    @order = current_user.orders.build(order_params)
-    @order.status = 'new'
+    @shopping_cart_items = current_user.shopping_cart_items
+
+    if @shopping_cart_items.empty?
+      redirect_to shopping_cart_items_path,
+                  alert: 'Kindly select products to add to your shopping cart before placing an order.'
+      return
+    end
+
+    @order = Order.new(order_params)
+    @order.user = current_user
+    @order.status = 'Pending'
+    @order.subtotal = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
+    @shopping_cart_total = @order.subtotal
+
+    calculate_taxes
+    @order.total_price = @order.subtotal + @gst + @pst + @hst + @qst
+
     if @order.save
-      process_order_items
+      @shopping_cart_items.each do |item|
+        @order.order_items.create(product: item.product, quantity: item.quantity, price: item.product.price)
+      end
       current_user.shopping_cart_items.destroy_all
-      redirect_to @order, notice: 'Order placed successfully.'
+      redirect_to @order, notice: 'Order was successfully created.'
     else
-      @shopping_cart_items = current_user.shopping_cart_items.includes(:product)
+      flash[:alert] = 'Order could not be created. Please try again.'
       render :new
     end
   end
 
   def show
-    @order = current_user.orders.find(params[:id])
-  end
-
-  def past_orders
-    @orders = current_user.orders.page(params[:page])
+    @order = Order.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    flash[:alert] = 'Order not found.'
+    redirect_to root_path
   end
 
   private
@@ -33,21 +55,11 @@ class OrdersController < ApplicationController
     params.require(:order).permit(:receiver_name, :address, :city, :zip, :province_id, :shipping_type_id)
   end
 
-  def process_order_items
-    current_user.shopping_cart_items.each do |cart_item|
-      @order.order_items.create!(
-        product: cart_item.product,
-        quantity: cart_item.quantity,
-        price: cart_item.product.price
-      )
-    end
-    calculate_total
-  end
-
-  def calculate_total
-    tax_rates = @order.province.slice(:pst_rate, :gst_rate, :hst_rate).values.compact
-    subtotal = @order.order_items.sum('quantity * price')
-    total_tax = tax_rates.sum { |rate| subtotal * rate }
-    @order.update(total_price: subtotal + total_tax)
+  def calculate_taxes
+    province = current_user.province
+    @gst = @shopping_cart_total * province.gst_rate
+    @pst = @shopping_cart_total * province.pst_rate
+    @hst = @shopping_cart_total * province.hst_rate
+    @qst = @shopping_cart_total * province.qst_rate
   end
 end

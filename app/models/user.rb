@@ -1,8 +1,7 @@
 class User < ApplicationRecord
+  belongs_to :province, foreign_key: 'province_id', optional: true
   has_many :orders, dependent: :destroy
   has_many :shopping_cart_items, dependent: :destroy
-  has_many :product_reviews, dependent: :destroy
-  belongs_to :province
 
   # Validations
   validates :username, presence: true, uniqueness: true
@@ -17,6 +16,6 @@ class User < ApplicationRecord
   end
 
   def self.ransackable_associations(auth_object = nil)
-    %w[orders shopping_cart_items product_reviews province]
+    %w[orders shopping_cart_items province]
   end
 end

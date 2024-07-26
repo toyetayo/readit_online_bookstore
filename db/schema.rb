@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_24_220930) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_25_233533) do
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
     t.text "body"
@@ -98,7 +98,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_24_220930) do
   end
 
   create_table "order_items", force: :cascade do |t|
-    t.integer "user_id", null: false
+    t.integer "user_id"
     t.integer "product_id", null: false
     t.datetime "purchase_date"
     t.integer "order_id", null: false
@@ -112,17 +112,19 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_24_220930) do
   end
 
   create_table "orders", force: :cascade do |t|
-    t.integer "user_id", null: false
+    t.integer "user_id"
     t.string "receiver_name"
     t.string "address"
     t.string "city"
     t.integer "zip"
-    t.integer "province_id", null: false
+    t.string "province_id"
     t.integer "shipping_type_id", null: false
     t.datetime "purchase_date"
     t.string "status"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "subtotal"
+    t.decimal "total_price"
     t.index ["province_id"], name: "index_orders_on_province_id"
     t.index ["shipping_type_id"], name: "index_orders_on_shipping_type_id"
     t.index ["user_id"], name: "index_orders_on_user_id"

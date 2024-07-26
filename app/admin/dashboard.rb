@@ -44,7 +44,9 @@ ActiveAdmin.register_page 'Dashboard' do
         panel 'Recent Orders' do
           table_for Order.order('created_at desc').limit(5) do
             column('ID') { |order| link_to order.id, admin_order_path(order) }
-            column('Customer') { |order| link_to order.user.email, admin_user_path(order.user) }
+            column('Customer') do |order|
+              order.user ? link_to(order.user.email, admin_user_path(order.user)) : 'No Customer'
+            end
             column('Status') { |order| status_tag(order.status) }
             column('Total') { |order| number_to_currency order.total_price }
           end

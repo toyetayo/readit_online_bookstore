@@ -81,9 +81,14 @@ class ShoppingCartItemsController < ApplicationController
   end
 
   def set_shopping_cart_item
-    return unless user_signed_in?
-
-    @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
-    Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}"
+    if user_signed_in?
+      @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
+      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}"
+    else
+      session[:shopping_cart] ||= []
+      item = session[:shopping_cart].find { |i| i['product_id'] == params[:id].to_i }
+      @shopping_cart_item = OpenStruct.new(item) if item
+      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}" if @shopping_cart_item
+    end
   end
 end

@@ -1,63 +1,130 @@
-<h1 class="text-center text-2xl font-bold my-4">Checkout</h1>
+<h1 class="text-2xl font-bold mb-4">Checkout</h1>
+<%= form_for @order do |f| %>
+  <div class="space-y-6">
+    <!-- Order Summary Section -->
+    <div class="order-summary bg-white p-6 rounded-lg shadow-md">
+      <div class="space-y-4">
+        <div>
+          <strong>Order ID:</strong>
+          <span>N/A</span>
+        </div>
 
-<div class="container mx-auto">
-  <div class="flex justify-center">
-    <div class="w-full max-w-lg">
-      <%= form_with model: @order, local: true, class: "bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4" do |f| %>
-        <div class="mb-4">
-          <%= f.label :receiver_name, class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.text_field :receiver_name, class: "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
+        <div>
+          <strong>Customer:</strong>
+          <span><%= current_user.email %></span>
         </div>
-        <div class="mb-4">
-          <%= f.label :address, class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.text_field :address, class: "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
+
+        <div>
+          <strong>Address:</strong>
+          <span><%= current_user.address %></span>
         </div>
-        <div class="mb-4">
-          <%= f.label :city, class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.text_field :city, class: "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
+
+        <div>
+          <strong>Order Date:</strong>
+          <span><%= Time.current %></span>
         </div>
-        <div class="mb-4">
-          <%= f.label :zip, class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.text_field :zip, class: "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
+
+        <div>
+          <strong>Status:</strong>
+          <span>Pending</span>
         </div>
-        <div class="mb-4">
-          <%= f.label :province_id, 'Province', class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.collection_select :province_id, Province.all, :id, :name, {}, { class: "block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline" } %>
-        </div>
-        <div class="mb-4">
-          <%= f.label :shipping_type_id, 'Shipping Type', class: "block text-gray-700 text-sm font-bold mb-2" %>
-          <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name, {}, { class: "block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline" } %>
-        </div>
-        <div class="text-center">
-          <%= f.submit 'Place Order', class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
-        </div>
-      <% end %>
+      </div>
     </div>
-  </div>
 
-  <div class="flex justify-center mt-10">
-    <div class="w-50 max-w-2xl">
-      <h2 class="text-center text-xl font-bold mb-4">Order Summary</h2>
-      <table class="min-w-full leading-normal shadow-md rounded-lg overflow-hidden">
+    <!-- Order Items Section -->
+    <div class="order-items bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold mb-4">Order Items</h2>
+      <table class="min-w-full divide-y divide-gray-200">
         <thead>
           <tr>
-            <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Product</th>
-            <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quantity</th>
-            <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Price</th>
-            <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody class="bg-white divide-y divide-gray-200">
           <% @shopping_cart_items.each do |item| %>
             <tr>
-              <td class="px-5 py-2 border-b border-gray-200 bg-white text-sm"><%= item.product.name %></td>
-              <td class="px-5 py-2 border-b border-gray-200 bg-white text-sm"><%= item.quantity %></td>
-              <td class="px-5 py-2 border-b border-gray-200 bg-white text-sm"><%= number_to_currency(item.product.price) %></td>
-              <td class="px-5 py-2 border-b border-gray-200 bg-white text-sm"><%= number_to_currency(item.quantity * item.product.price) %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= item.product.name %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= item.quantity %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.product.price) %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.product.price * item.quantity) %></td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
+
+    <!-- Order Details Section -->
+    <div class="order-details bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold mb-4">Order Details</h2>
+      <div class="space-y-4">
+        <div class="flex justify-between items-center">
+          <strong>Subtotal:</strong>
+          <span><%= number_to_currency(@shopping_cart_total) %></span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <strong>GST:</strong>
+          <span><%= number_to_currency(@gst) %></span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <strong>PST:</strong>
+          <span><%= number_to_currency(@pst) %></span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <strong>HST:</strong>
+          <span><%= number_to_currency(@hst) %></span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <strong>QST:</strong>
+          <span><%= number_to_currency(@qst) %></span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <strong>Total:</strong>
+          <span><%= number_to_currency(@shopping_cart_total + @gst + @pst + @hst + @qst) %></span>
+        </div>
+
+        <!-- Form Fields -->
+        <div class="mb-4">
+          <%= f.label :receiver_name, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :receiver_name, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div class="mb-4">
+          <%= f.label :address, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :address, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div class="mb-4">
+          <%= f.label :city, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :city, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div class="mb-4">
+          <%= f.label :zip, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :zip, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div class="mb-4">
+          <%= f.label :province_id, "Province", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div class="mb-4">
+          <%= f.label :shipping_type_id, "Shipping Type", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <div>
+          <%= f.submit "Place Order", class: "w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" %>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+<% end %>
