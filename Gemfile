@@ -98,6 +98,7 @@ group :development, :test do
   gem 'rspec-rails', '~> 5.0'
 end
 
+gem 'dotenv-rails', groups: %i[development test]
 gem 'hotwire-rails'
 gem 'rails-ujs'
 gem 'trix'

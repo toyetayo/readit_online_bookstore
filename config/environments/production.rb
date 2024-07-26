@@ -1,4 +1,4 @@
-require "active_support/core_ext/integer/time"
+require 'active_support/core_ext/integer/time'
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -11,6 +11,10 @@ Rails.application.configure do
   # and those relying on copy on write to perform better.
   # Rake tasks automatically ignore this option for performance.
   config.eager_load = true
+
+  # stripe keys
+  config.stripe.publishable_key = ENV['pk_test_51PbPCUDsjvLUGLG3J68smAXwkmPS3PXd4QUF755W2uqTsa4hNmR7mnWsXRBKTdK2zI769yBsvLVL6VHUMknWA6IY00X86HsZxM']
+  config.stripe.secret_key = ENV['sk_test_51PbPCUDsjvLUGLG3Wd6GNXAvSXSl9TUJ8mWCIGhwR7LtaQkS8kBkUPpdtHhjRLIqiI9eonYXWNJpl2e6HdCD9gov00B5V7MZn3']
 
   # Full error reports are disabled and caching is turned on.
   config.consider_all_requests_local = false
@@ -53,16 +57,16 @@ Rails.application.configure do
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)
-    .tap  { |logger| logger.formatter = ::Logger::Formatter.new }
-    .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
+                                       .tap  { |logger| logger.formatter = ::Logger::Formatter.new }
+                                       .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
 
   # Prepend all log lines with the following tags.
-  config.log_tags = [ :request_id ]
+  config.log_tags = [:request_id]
 
   # "info" includes generic and useful information about system operation, but avoids logging too much
   # information to avoid inadvertent exposure of personally identifiable information (PII). If you
   # want to log everything, set the level to "debug".
-  config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
+  config.log_level = ENV.fetch('RAILS_LOG_LEVEL', 'info')
 
   # Use a different cache store in production.
   # config.cache_store = :mem_cache_store
