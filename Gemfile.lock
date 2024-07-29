@@ -393,6 +393,10 @@ GEM
       railties (>= 6.0.0)
     stringio (3.1.1)
     stripe (12.3.0)
+    stripe-rails (2.5.0)
+      rails (>= 5.1)
+      responders
+      stripe (>= 3.15.0)
     strscan (3.1.0)
     tailwindcss-rails (2.6.3)
       railties (>= 7.0.0)
@@ -482,6 +486,7 @@ DEPENDENCIES
   sqlite3 (~> 1.4)
   stimulus-rails
   stripe
+  stripe-rails
   tailwindcss-rails
   trix
   turbo-rails

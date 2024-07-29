@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_26_054911) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_28_211418) do
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
     t.text "body"
@@ -117,7 +117,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_054911) do
     t.string "receiver_name"
     t.string "address"
     t.string "city"
-    t.integer "zip"
+    t.integer "postal_code"
     t.string "province_id"
     t.integer "shipping_type_id", null: false
     t.datetime "purchase_date"
@@ -130,6 +130,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_054911) do
     t.decimal "pst_rate", precision: 5, scale: 4, default: "0.0", null: false
     t.decimal "hst_rate", precision: 5, scale: 4, default: "0.0", null: false
     t.decimal "qst_rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.string "stripe_payment_id"
     t.index ["province_id"], name: "index_orders_on_province_id"
     t.index ["shipping_type_id"], name: "index_orders_on_shipping_type_id"
     t.index ["user_id"], name: "index_orders_on_user_id"

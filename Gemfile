@@ -95,10 +95,11 @@ gem 'ruby-vips'
 gem 'activeadmin_addons'
 
 group :development, :test do
+  gem 'dotenv-rails'
   gem 'rspec-rails', '~> 5.0'
 end
 
-gem 'dotenv-rails', groups: %i[development test]
 gem 'hotwire-rails'
 gem 'rails-ujs'
+gem 'stripe-rails'
 gem 'trix'

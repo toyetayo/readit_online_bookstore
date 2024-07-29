@@ -1,5 +1,6 @@
 class OrdersController < ApplicationController
   before_action :authenticate_user!
+  before_action :set_stripe_api_key
 
   def index
     @orders = current_user.orders.includes(:order_items, :province)
@@ -23,7 +24,7 @@ class OrdersController < ApplicationController
 
     @order = Order.new(order_params)
     @order.user = current_user
-    @order.status = 'new'
+    @order.status = 'pending'
     @order.subtotal = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
     @shopping_cart_total = @order.subtotal
 
@@ -43,10 +44,22 @@ class OrdersController < ApplicationController
       end
       current_user.shopping_cart_items.destroy_all
 
-      # Simulating payment confirmation
-      @order.update(status: 'paid')
-
-      redirect_to @order, notice: 'Order was successfully created and paid.'
+      begin
+        payment_intent = Stripe::PaymentIntent.create({
+                                                        amount: (@order.total_price * 100).to_i,
+                                                        currency: 'usd',
+                                                        payment_method: params[:payment_method_id],
+                                                        confirm: true,
+                                                        return_url: order_url(@order),
+                                                        automatic_payment_methods: { enabled: true }
+                                                      })
+        @order.update(status: 'paid', stripe_payment_id: payment_intent.id)
+        redirect_to @order, notice: 'Order was successfully created and paid.'
+      rescue Stripe::CardError => e
+        @order.destroy
+        flash[:alert] = e.message
+        render :new
+      end
     else
       flash[:alert] = 'Order could not be created. Please try again.'
       render :new
@@ -62,8 +75,13 @@ class OrdersController < ApplicationController
 
   private
 
+  def set_stripe_api_key
+    Rails.logger.debug "Stripe API Key: #{ENV['STRIPE_SECRET_KEY']}"
+    Stripe.api_key = ENV['STRIPE_SECRET_KEY']
+  end
+
   def order_params
-    params.require(:order).permit(:receiver_name, :address, :city, :zip, :province_id, :shipping_type_id)
+    params.require(:order).permit(:receiver_name, :address, :city, :postal_code, :province_id, :shipping_type_id)
   end
 
   def calculate_taxes

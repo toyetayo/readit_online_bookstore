@@ -1,29 +1,25 @@
 <h1 class="text-2xl font-bold mb-4">Checkout</h1>
-<%= form_for @order do |f| %>
-  <div class="space-y-6">
+<%= form_for @order, html: { id: 'payment-form' } do |f| %>
+  <div class="space-y-6 container mx-auto flex flex-col items-center">
     <!-- Order Summary Section -->
-    <div class="order-summary bg-white p-6 rounded-lg shadow-md">
+    <div class="order-summary bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
       <div class="space-y-4">
         <div>
           <strong>Order ID:</strong>
           <span>N/A</span>
         </div>
-
         <div>
           <strong>Customer:</strong>
           <span><%= current_user.email %></span>
         </div>
-
         <div>
           <strong>Address:</strong>
           <span><%= current_user.address %></span>
         </div>
-
         <div>
           <strong>Order Date:</strong>
           <span><%= Time.current %></span>
         </div>
-
         <div>
           <strong>Status:</strong>
           <span>Pending</span>
@@ -32,7 +28,7 @@
     </div>
 
     <!-- Order Items Section -->
-    <div class="order-items bg-white p-6 rounded-lg shadow-md">
+    <div class="order-items bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
       <h2 class="text-xl font-semibold mb-4">Order Items</h2>
       <table class="min-w-full divide-y divide-gray-200">
         <thead>
@@ -57,34 +53,29 @@
     </div>
 
     <!-- Order Details Section -->
-    <div class="order-details bg-white p-6 rounded-lg shadow-md">
+    <div class="order-details bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
       <h2 class="text-xl font-semibold mb-4">Order Details</h2>
       <div class="space-y-4">
         <div class="flex justify-between items-center">
           <strong>Subtotal:</strong>
           <span><%= number_to_currency(@shopping_cart_total) %></span>
         </div>
-
         <div class="flex justify-between items-center">
           <strong>GST:</strong>
           <span><%= number_to_currency(@gst) %></span>
         </div>
-
         <div class="flex justify-between items-center">
           <strong>PST:</strong>
           <span><%= number_to_currency(@pst) %></span>
         </div>
-
         <div class="flex justify-between items-center">
           <strong>HST:</strong>
           <span><%= number_to_currency(@hst) %></span>
         </div>
-
         <div class="flex justify-between items-center">
           <strong>QST:</strong>
           <span><%= number_to_currency(@qst) %></span>
         </div>
-
         <div class="flex justify-between items-center">
           <strong>Total:</strong>
           <span><%= number_to_currency(@shopping_cart_total + @gst + @pst + @hst + @qst) %></span>
@@ -95,30 +86,32 @@
           <%= f.label :receiver_name, class: "block text-sm font-medium text-gray-700" %>
           <%= f.text_field :receiver_name, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
-
         <div class="mb-4">
           <%= f.label :address, class: "block text-sm font-medium text-gray-700" %>
           <%= f.text_field :address, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
-
         <div class="mb-4">
           <%= f.label :city, class: "block text-sm font-medium text-gray-700" %>
           <%= f.text_field :city, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
-
         <div class="mb-4">
-          <%= f.label :zip, class: "block text-sm font-medium text-gray-700" %>
-          <%= f.text_field :zip, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+          <%= f.label :postal_code, "Postal Code", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :postal_code, id: 'postal-code', class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
-
         <div class="mb-4">
           <%= f.label :province_id, "Province", class: "block text-sm font-medium text-gray-700" %>
           <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
-
         <div class="mb-4">
           <%= f.label :shipping_type_id, "Shipping Type", class: "block text-sm font-medium text-gray-700" %>
           <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <!-- Stripe Payment Section -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700">Card Information</label>
+          <div id="card-element" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"></div>
+          <div id="card-errors" role="alert" class="text-red-500 mt-2"></div>
         </div>
 
         <div>
@@ -128,3 +121,50 @@
     </div>
   </div>
 <% end %>
+
+<%= javascript_include_tag 'https://js.stripe.com/v3/' %>
+<script>
+  document.addEventListener("turbo:load", function() {
+    var stripe = Stripe('<%= ENV["STRIPE_PUBLISHABLE_KEY"] %>');
+    var elements = stripe.elements();
+    var card = elements.create('card', { hidePostalCode: true });
+    card.mount('#card-element');
+
+    card.on('change', function(event) {
+      var displayError = document.getElementById('card-errors');
+      if (event.error) {
+        displayError.textContent = event.error.message;
+      } else {
+        displayError.textContent = '';
+      }
+    });
+
+    var form = document.getElementById('payment-form');
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      stripe.createPaymentMethod({
+        type: 'card',
+        card: card,
+        billing_details: {
+          address: {
+            postal_code: document.getElementById('postal-code').value
+          }
+        }
+      }).then(function(result) {
+        if (result.error) {
+          var errorElement = document.getElementById('card-errors');
+          errorElement.textContent = result.error.message;
+        } else {
+          var hiddenInput = document.createElement('input');
+          hiddenInput.setAttribute('type', 'hidden');
+          hiddenInput.setAttribute('name', 'payment_method_id');
+          hiddenInput.setAttribute('value', result.paymentMethod.id);
+          form.appendChild(hiddenInput);
+
+          form.submit();
+        }
+      });
+    });
+  });
+</script>
