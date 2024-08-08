@@ -103,3 +103,7 @@ gem 'hotwire-rails'
 gem 'rails-ujs'
 gem 'stripe-rails'
 gem 'trix'
+
+gem 'google-cloud-storage'
+
+gem 'aws-sdk-s3'

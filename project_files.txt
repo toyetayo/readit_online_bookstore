@@ -1,0 +1,4833 @@
+### app/javascript/controllers/index.js ###
+// Import and register all your controllers from the importmap under controllers/*
+
+import { application } from "controllers/application"
+
+// Eager load all controllers defined in the import map under controllers/**/*_controller
+import { eagerLoadControllersFrom } from "@hotwired/stimulus-loading"
+eagerLoadControllersFrom("controllers", application)
+
+// Lazy load controllers as they appear in the DOM (remember not to preload controllers in import map!)
+// import { lazyLoadControllersFrom } from "@hotwired/stimulus-loading"
+// lazyLoadControllersFrom("controllers", application)
+
+
+
+### app/javascript/controllers/application.js ###
+import { Application } from "@hotwired/stimulus"
+import { definitionsFromContext } from "@hotwired/stimulus-webpack-helpers"
+
+const application = Application.start()
+const context = require.context("controllers", true, /\.js$/)
+application.load(definitionsFromContext(context))
+
+// Configure Stimulus development experience
+application.debug = false
+window.Stimulus = application
+
+export { application }
+
+
+
+### app/javascript/controllers/stripe_controller.js ###
+// app/javascript/controllers/stripe_controller.js
+import { Controller } from "@hotwired/stimulus"
+import { loadStripe } from "@stripe/stripe-js"
+
+export default class extends Controller {
+  static targets = ["card", "form", "receiverName", "address", "city", "zip", "provinceId", "shippingTypeId"]
+
+  async connect() {
+    this.stripe = await loadStripe("your-publishable-key-here")
+
+    const elements = this.stripe.elements()
+    this.card = elements.create("card")
+    this.card.mount(this.cardTarget)
+  }
+
+  async submit(event) {
+    event.preventDefault()
+
+    const { paymentMethod, error } = await this.stripe.createPaymentMethod({
+      type: "card",
+      card: this.card,
+    })
+
+    if (error) {
+      console.error(error)
+      this.displayError(error.message)
+    } else {
+      this.createOrder(paymentMethod.id)
+    }
+  }
+
+  async createOrder(paymentMethodId) {
+    const response = await fetch("/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').getAttribute("content"),
+      },
+      body: JSON.stringify({
+        payment_method_id: paymentMethodId,
+        order: {
+          receiver_name: this.receiverNameTarget.value,
+          address: this.addressTarget.value,
+          city: this.cityTarget.value,
+          zip: this.zipTarget.value,
+          province_id: this.provinceIdTarget.value,
+          shipping_type_id: this.shippingTypeIdTarget.value,
+        },
+      }),
+    })
+
+    const data = await response.json()
+    if (data.error) {
+      this.displayError(data.error)
+    } else {
+      console.log("Order placed successfully:", data)
+      // Redirect or update the UI accordingly
+    }
+  }
+
+  displayError(message) {
+    const errorElement = document.getElementById("card-errors")
+    errorElement.textContent = message
+  }
+}
+
+
+
+### app/javascript/controllers/hello_controller.js ###
+import { Controller } from "@hotwired/stimulus"
+
+export default class extends Controller {
+  connect() {
+    this.element.textContent = "Hello World!"
+  }
+}
+
+
+
+### app/javascript/application.js ###
+// Configure your import map in config/importmap.rb. Read more: https://github.com/rails/importmap-rails
+import "@hotwired/turbo-rails"
+import "controllers"
+import "trix"
+import "@rails/actiontext"
+
+
+
+### app/models/concerns/.keep ###
+
+
+
+### app/models/product_review.rb ###
+class ProductReview < ApplicationRecord
+  belongs_to :user, dependent: :destroy
+  belongs_to :product, dependent: :destroy
+
+  validates :rating, :review, presence: true
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[product_id user_id review rating review_date reviewer_name created_at updated_at]
+  end
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[product user]
+  end
+end
+
+
+
+### app/models/user.rb ###
+class User < ApplicationRecord
+  belongs_to :province, foreign_key: 'province_id', optional: true
+  has_many :orders, dependent: :destroy
+  has_many :shopping_cart_items, dependent: :destroy
+
+  # Validations
+  validates :username, presence: true, uniqueness: true
+  validates :email, :encrypted_password, presence: true
+  validates :first_name, :last_name, :address, :city, :zip, :phone_number, :province_id, presence: true, on: :update
+
+  devise :database_authenticatable, :registerable,
+         :recoverable, :rememberable, :validatable
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[address city created_at email first_name id last_name phone_number province_id updated_at zip]
+  end
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[orders shopping_cart_items province]
+  end
+end
+
+
+
+### app/models/order_item.rb ###
+class OrderItem < ApplicationRecord
+  belongs_to :order
+  belongs_to :product
+
+  validates :product, :quantity, :price, :product_price, presence: true
+
+  before_validation :set_product_price
+
+  private
+
+  def set_product_price
+    self.product_price = product.price if new_record?
+  end
+end
+
+
+
+### app/models/product_category.rb ###
+class ProductCategory < ApplicationRecord
+  belongs_to :product
+  belongs_to :category
+end
+
+
+
+### app/models/ckeditor/attachment_file.rb ###
+# frozen_string_literal: true
+
+class Ckeditor::AttachmentFile < Ckeditor::Asset
+  has_attached_file :data,
+                    url: '/ckeditor_assets/attachments/:id/:filename',
+                    path: ':rails_root/public/ckeditor_assets/attachments/:id/:filename'
+
+  validates_attachment_presence :data
+  validates_attachment_size :data, less_than: 100.megabytes
+  do_not_validate_attachment_file_type :data
+
+  def url_thumb
+    @url_thumb ||= Ckeditor::Utils.filethumb(filename)
+  end
+end
+
+
+
+### app/models/ckeditor/asset.rb ###
+# frozen_string_literal: true
+
+class Ckeditor::Asset < ActiveRecord::Base
+  include Ckeditor::Orm::ActiveRecord::AssetBase
+  include Ckeditor::Backend::Paperclip
+end
+
+
+
+### app/models/ckeditor/picture.rb ###
+# frozen_string_literal: true
+
+class Ckeditor::Picture < Ckeditor::Asset
+  has_attached_file :data,
+                    url: '/ckeditor_assets/pictures/:id/:style_:basename.:extension',
+                    path: ':rails_root/public/ckeditor_assets/pictures/:id/:style_:basename.:extension',
+                    styles: { content: '800>', thumb: '118x100#' }
+
+  validates_attachment_presence :data
+  validates_attachment_size :data, less_than: 2.megabytes
+  validates_attachment_content_type :data, content_type: /\Aimage/
+
+  def url_content
+    url(:content)
+  end
+end
+
+
+
+### app/models/province.rb ###
+class Province < ApplicationRecord
+  has_many :users
+  has_many :orders
+
+  validates :name, :gst_rate, :pst_rate, :hst_rate, :qst_rate, presence: true
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[name gst_rate pst_rate hst_rate qst_rate created_at updated_at]
+  end
+end
+
+
+
+### app/models/shopping_cart_item.rb ###
+class ShoppingCartItem < ApplicationRecord
+  belongs_to :user, optional: true
+  belongs_to :product
+
+  validates :quantity, presence: true, numericality: { greater_than: 0 }
+
+  def total_price
+    product.price * quantity
+  end
+
+  def total_price_with_tax
+    total_price * (1 + tax_rate)
+  end
+
+  private
+
+  def tax_rate
+    if user.present?
+      calculate_tax_rate_for_user
+    else
+      calculate_tax_rate_for_guest
+    end
+  end
+
+  def calculate_tax_rate_for_user
+    province = user.province
+    gst = province.gst_rate || 0
+    pst = province.pst_rate || 0
+    hst = province.hst_rate || 0
+    qst = province.qst_rate || 0
+
+    (gst + pst + hst + qst).to_f / 100
+  end
+
+  def calculate_tax_rate_for_guest
+    default_province = Province.find_by(name: 'default') # Adjust to your default province or handle appropriately
+    gst = default_province.gst_rate || 0
+    pst = default_province.pst_rate || 0
+    hst = default_province.hst_rate || 0
+    qst = default_province.qst_rate || 0
+
+    (gst + pst + hst + qst).to_f / 100
+  end
+end
+
+
+
+### app/models/product.rb ###
+class Product < ApplicationRecord
+  paginates_per 20
+  has_many :order_items, dependent: :destroy
+  has_many :product_reviews, dependent: :destroy
+  has_many :shopping_cart_items, dependent: :destroy
+  has_many :product_categories, dependent: :destroy
+  belongs_to :category
+  has_one_attached :image
+
+  validates :name, :author, :description, :price, :number_in_stock, presence: true
+  validates :price, presence: true, numericality: { greater_than: 0 }
+
+  scope :new_products, -> { where('created_at >= ?', 3.days.ago) }
+  scope :recently_updated, -> { where('updated_at >= ?', 3.days.ago) }
+  scope :on_sale, -> { where('price < ?', 20) } # Example condition
+
+  def self.search_by_keyword(keyword)
+    where('name LIKE ? OR description LIKE ?', "%#{keyword}%", "%#{keyword}%")
+  end
+
+  def self.search_by_category(keyword, category_id)
+    where('(name LIKE ? OR description LIKE ?) AND category_id = ?', "%#{keyword}%", "%#{keyword}%", category_id)
+  end
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[author created_at description id name number_in_stock price updated_at category_id]
+  end
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[category]
+  end
+
+  # Virtual attribute to determine if a product is on sale
+  def on_sale?
+    price < 20 # Example condition: product is on sale if the price is less than 20
+  end
+end
+
+
+
+### app/models/user_product.rb ###
+class UserProduct < ApplicationRecord
+  belongs_to :user
+  belongs_to :product
+end
+
+
+
+### app/models/order.rb ###
+# app/models/order.rb
+class Order < ApplicationRecord
+  belongs_to :user
+  belongs_to :province
+  belongs_to :shipping_type
+  has_many :order_items, dependent: :destroy
+
+  validates :user, presence: true
+  validates :status, presence: true
+  validates :subtotal, presence: true
+
+  enum status: { pending: 'pending', paid: 'paid', shipped: 'shipped' }
+
+  before_validation :set_defaults
+  before_save :calculate_total_price
+
+  def calculate_total_price
+    return unless subtotal.present? && province.present?
+
+    gst = subtotal * province.gst_rate
+    pst = subtotal * province.pst_rate
+    hst = subtotal * province.hst_rate
+    qst = subtotal * province.qst_rate
+
+    self.total_price = subtotal + gst + pst + hst + qst
+  end
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[order_items province user shipping_type]
+  end
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[address city created_at id province_id purchase_date receiver_name shipping_type_id status subtotal total_price
+       updated_at user_id zip]
+  end
+
+  private
+
+  def set_defaults
+    self.status ||= 'pending'
+    self.total_price ||= 0
+  end
+end
+
+
+
+### app/models/shipping_type.rb ###
+class ShippingType < ApplicationRecord
+  has_many :orders
+
+  validates :name, presence: true
+  validates :price, presence: true, numericality: { greater_than_or_equal_to: 0 }
+end
+
+
+
+### app/models/user_product_review.rb ###
+class UserProductReview < ApplicationRecord
+  belongs_to :user
+  belongs_to :product_review
+end
+
+
+
+### app/models/admin_user.rb ###
+class AdminUser < ApplicationRecord
+  devise :database_authenticatable, :recoverable, :rememberable, :validatable
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[created_at email id remember_created_at reset_password_sent_at reset_password_token updated_at]
+  end
+end
+
+
+
+### app/models/application_record.rb ###
+class ApplicationRecord < ActiveRecord::Base
+  primary_abstract_class
+end
+
+
+
+### app/models/category.rb ###
+class Category < ApplicationRecord
+  has_many :product_categories, dependent: :destroy
+  has_many :products, through: :product_categories
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[created_at id name updated_at]
+  end
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[product_categories products]
+  end
+end
+
+
+
+### app/models/page.rb ###
+class Page < ApplicationRecord
+  validates :title, presence: true
+  validates :content, presence: true
+  validates :slug, presence: true, uniqueness: true
+
+  def self.ransackable_associations(auth_object = nil)
+    %w[author categories tags]
+  end
+
+  def self.ransackable_attributes(auth_object = nil)
+    %w[title content created_at slug]
+  end
+end
+
+
+
+### app/controllers/concerns/.keep ###
+
+
+
+### app/controllers/pages_controller.rb ###
+class PagesController < ApplicationController
+  def show
+    @page = Page.find_by(slug: params[:id])
+    return unless @page.nil?
+
+    redirect_to root_path, alert: 'Page not found'
+  end
+end
+
+
+
+### app/controllers/orders_controller.rb ###
+class OrdersController < ApplicationController
+  before_action :authenticate_user!
+  before_action :set_stripe_api_key
+
+  def index
+    @orders = current_user.orders.includes(:order_items, :province)
+  end
+
+  def new
+    @order = Order.new
+    @shopping_cart_items = current_user.shopping_cart_items
+    @shopping_cart_total = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
+    calculate_taxes
+  end
+
+  def create
+    @shopping_cart_items = current_user.shopping_cart_items
+
+    if @shopping_cart_items.empty?
+      redirect_to shopping_cart_items_path,
+                  alert: 'Kindly select products to add to your shopping cart before placing an order.'
+      return
+    end
+
+    @order = Order.new(order_params)
+    @order.user = current_user
+    @order.status = 'pending'
+    @order.subtotal = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
+    @shopping_cart_total = @order.subtotal
+
+    province = current_user.province
+    @order.gst_rate = province.gst_rate
+    @order.pst_rate = province.pst_rate
+    @order.hst_rate = province.hst_rate
+    @order.qst_rate = province.qst_rate
+
+    calculate_taxes
+    @order.total_price = @order.subtotal + @gst + @pst + @hst + @qst
+
+    if @order.save
+      @shopping_cart_items.each do |item|
+        @order.order_items.create(product: item.product, quantity: item.quantity, price: item.product.price,
+                                  product_price: item.product.price)
+      end
+      current_user.shopping_cart_items.destroy_all
+
+      begin
+        payment_intent = Stripe::PaymentIntent.create({
+                                                        amount: (@order.total_price * 100).to_i,
+                                                        currency: 'usd',
+                                                        payment_method: params[:payment_method_id],
+                                                        confirm: true,
+                                                        return_url: order_url(@order),
+                                                        automatic_payment_methods: { enabled: true }
+                                                      })
+        @order.update(status: 'paid', stripe_payment_id: payment_intent.id)
+        redirect_to @order, notice: 'Order was successfully created and paid.'
+      rescue Stripe::CardError => e
+        @order.destroy
+        flash[:alert] = e.message
+        render :new
+      end
+    else
+      flash[:alert] = 'Order could not be created. Please try again.'
+      render :new
+    end
+  end
+
+  def show
+    @order = Order.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    flash[:alert] = 'Order not found.'
+    redirect_to root_path
+  end
+
+  private
+
+  def set_stripe_api_key
+    Rails.logger.debug "Stripe API Key: #{ENV['STRIPE_SECRET_KEY']}"
+    Stripe.api_key = ENV['STRIPE_SECRET_KEY']
+  end
+
+  def order_params
+    params.require(:order).permit(:receiver_name, :address, :city, :postal_code, :province_id, :shipping_type_id)
+  end
+
+  def calculate_taxes
+    province = current_user.province
+    @gst = @shopping_cart_total * province.gst_rate
+    @pst = @shopping_cart_total * province.pst_rate
+    @hst = @shopping_cart_total * province.hst_rate
+    @qst = @shopping_cart_total * province.qst_rate
+  end
+end
+
+
+
+### app/controllers/shipping_type_controller.rb ###
+# app/controllers/shipping_types_controller.rb
+class ShippingTypesController < ApplicationController
+  def price
+    shipping_type = ShippingType.find(params[:id])
+    render json: { price: shipping_type.price }
+  end
+end
+
+
+
+### app/controllers/users_controller.rb ###
+class UsersController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @user = current_user
+  end
+end
+
+
+
+### app/controllers/shopping_cart_items_controller.rb ###
+class ShoppingCartItemsController < ApplicationController
+  before_action :authenticate_user!, except: %i[index create update destroy]
+  before_action :set_shopping_cart_item, only: %i[update destroy]
+
+  def index
+    @shopping_cart_items = if user_signed_in?
+                             current_user.shopping_cart_items.includes(:product)
+                           else
+                             session[:shopping_cart] ||= []
+                             session[:shopping_cart].map { |item| OpenStruct.new(item) }
+                           end
+  end
+
+  def create
+    if user_signed_in?
+      @shopping_cart_item = current_user.shopping_cart_items.find_or_initialize_by(product_id: shopping_cart_item_params[:product_id])
+      if @shopping_cart_item.new_record?
+        @shopping_cart_item.quantity = shopping_cart_item_params[:quantity].to_i
+      else
+        @shopping_cart_item.quantity += shopping_cart_item_params[:quantity].to_i
+      end
+      if @shopping_cart_item.save
+        redirect_to shopping_cart_items_path, notice: 'Item added to cart.'
+      else
+        redirect_to products_path, alert: 'Unable to add item to cart.'
+      end
+    else
+      add_to_session_cart(shopping_cart_item_params)
+      redirect_to shopping_cart_items_path, notice: 'Item added to cart.'
+    end
+  end
+
+  def update
+    if user_signed_in?
+      Rails.logger.debug "Updating shopping cart item: #{shopping_cart_item_params.inspect}"
+      if @shopping_cart_item.update(shopping_cart_item_params)
+        redirect_to shopping_cart_items_path, notice: 'Cart updated.'
+      else
+        Rails.logger.debug "Failed to update cart item: #{@shopping_cart_item.errors.full_messages}"
+        redirect_to shopping_cart_items_path, alert: 'Unable to update cart.'
+      end
+    else
+      Rails.logger.debug "Updating session cart item: #{shopping_cart_item_params.inspect}"
+      update_session_cart(shopping_cart_item_params)
+      redirect_to shopping_cart_items_path, notice: 'Cart updated.'
+    end
+  end
+
+  def destroy
+    if user_signed_in?
+      Rails.logger.debug "Destroying shopping cart item: #{@shopping_cart_item.inspect}"
+      @shopping_cart_item.destroy
+    else
+      product_id = params[:id].to_i
+      Rails.logger.debug "Destroying session cart item with product_id: #{product_id}"
+      session[:shopping_cart].reject! { |item| item['product_id'] == product_id }
+    end
+    redirect_to shopping_cart_items_path, notice: 'Item removed from cart.'
+  end
+
+  private
+
+  def shopping_cart_item_params
+    params.require(:shopping_cart_item).permit(:product_id, :quantity)
+  end
+
+  def add_to_session_cart(item_params)
+    session[:shopping_cart] ||= []
+    existing_item = session[:shopping_cart].find { |item| item['product_id'] == item_params[:product_id].to_i }
+    if existing_item
+      existing_item['quantity'] += item_params[:quantity].to_i
+    else
+      session[:shopping_cart] << item_params.to_h
+    end
+  end
+
+  def update_session_cart(item_params)
+    session[:shopping_cart].each do |item|
+      item['quantity'] = item_params[:quantity].to_i if item['product_id'] == item_params[:product_id].to_i
+    end
+  end
+
+  def set_shopping_cart_item
+    if user_signed_in?
+      @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
+      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}"
+    else
+      session[:shopping_cart] ||= []
+      item = session[:shopping_cart].find { |i| i['product_id'] == params[:id].to_i }
+      @shopping_cart_item = OpenStruct.new(item) if item
+      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}" if @shopping_cart_item
+    end
+  end
+end
+
+
+
+### app/controllers/application_controller.rb ###
+class ApplicationController < ActionController::Base
+  include ApplicationHelper
+  before_action :configure_permitted_parameters, if: :devise_controller?
+
+  protected
+
+  def configure_permitted_parameters
+    devise_parameter_sanitizer.permit(:sign_up,
+                                      keys: %i[username first_name last_name address city zip phone_number province_id])
+    devise_parameter_sanitizer.permit(:account_update,
+                                      keys: %i[username first_name last_name address city zip phone_number province_id])
+  end
+end
+
+
+
+### app/controllers/products_controller.rb ###
+class ProductsController < ApplicationController
+  def index
+    @categories = Category.joins(:products).distinct.page(params[:category_page])
+    @products = Product.with_attached_image
+
+    if params[:search].present?
+      keyword = params[:search][:keyword]
+      category_id = params[:search][:category_id]
+
+      @products = if category_id.present?
+                    @products.search_by_category(keyword, category_id)
+                  else
+                    @products.search_by_keyword(keyword)
+                  end
+    end
+
+    if params[:filter].present?
+      case params[:filter]
+      when 'on_sale'
+        @products = @products.on_sale
+      when 'new'
+        @products = @products.new_products
+      when 'recently_updated'
+        @products = @products.recently_updated
+        Rails.logger.debug("Recently Updated Products: #{@products.pluck(:updated_at, :name).inspect}")
+      end
+    end
+
+    if params[:category_id].present?
+      @selected_category = Category.find(params[:category_id])
+      @products = @products.where(category_id: @selected_category.id)
+    end
+
+    @products = @products.page(params[:page])
+  end
+
+  def show
+    @product = Product.find(params[:id])
+    @related_products = Product.where(category_id: @product.category_id).where.not(id: @product.id).with_attached_image.limit(4)
+  end
+end
+
+
+
+### app/services/tax_calculator.rb ###
+class TaxCalculator
+  TAX_RATES = {
+    'AB' => { gst: 0.05, pst: 0.0, hst: 0.0 }, # Alberta
+    'BC' => { gst: 0.05, pst: 0.07, hst: 0.0 }, # British Columbia
+    'MB' => { gst: 0.05, pst: 0.07, hst: 0.0 }, # Manitoba
+    'NB' => { gst: 0.05, pst: 0.0, hst: 0.15 }, # New Brunswick
+    'NL' => { gst: 0.05, pst: 0.0, hst: 0.15 }, # Newfoundland and Labrador
+    'NS' => { gst: 0.05, pst: 0.0, hst: 0.15 }, # Nova Scotia
+    'NT' => { gst: 0.05, pst: 0.0, hst: 0.0 }, # Northwest Territories
+    'NU' => { gst: 0.05, pst: 0.0, hst: 0.0 }, # Nunavut
+    'ON' => { gst: 0.05, pst: 0.0, hst: 0.13 }, # Ontario
+    'PE' => { gst: 0.05, pst: 0.0, hst: 0.15 }, # Prince Edward Island
+    'QC' => { gst: 0.05, pst: 0.0, hst: 0.0, qst: 0.09975 }, # Quebec
+    'SK' => { gst: 0.05, pst: 0.06, hst: 0.0 }, # Saskatchewan
+    'YT' => { gst: 0.05, pst: 0.0, hst: 0.0 } # Yukon
+  }
+
+  def self.calculate_total_price(subtotal, province_id)
+    rates = TAX_RATES[province_id] || { gst: 0.05, pst: 0.0, hst: 0.0, qst: 0.0 }
+    gst = rates[:gst]
+    pst = rates[:pst]
+    hst = rates[:hst]
+    qst = rates[:qst]
+
+    gst_amount = subtotal * gst
+    pst_amount = subtotal * pst
+    hst_amount = subtotal * hst
+    qst_amount = subtotal * qst
+    total_tax = gst_amount + pst_amount + hst_amount + qst_amount
+    total_price = subtotal + total_tax
+
+    {
+      subtotal:,
+      gst: gst_amount,
+      pst: pst_amount,
+      hst: hst_amount,
+      qst: qst_amount,
+      total_price:
+    }
+  end
+end
+
+
+
+### app/helpers/carts_helper.rb ###
+module CartsHelper
+end
+
+
+
+### app/helpers/application_helper.rb ###
+module ApplicationHelper
+  def flash_class(level)
+    case level
+    when 'notice' then 'blue'
+    when 'alert' then 'red'
+    else 'gray'
+    end
+  end
+end
+
+
+
+### app/helpers/pages_helper.rb ###
+module PagesHelper
+end
+
+
+
+### app/mailers/application_mailer.rb ###
+class ApplicationMailer < ActionMailer::Base
+  default from: "from@example.com"
+  layout "mailer"
+end
+
+
+
+### app/assets/javascripts/active_admin.js ###
+//= require active_admin/base
+//= require activeadmin/quill_editor/quill
+//= require activeadmin/quill_editor_input
+
+
+
+### app/assets/javascripts/application.js ###
+//= require rails-ujs
+//= require activestorage
+//= require turbolinks
+//= require_tree .
+//= require trix
+
+
+
+### app/assets/images/.keep ###
+
+
+
+### app/assets/config/manifest.js ###
+//= link_tree ../images
+//= link_directory ../stylesheets .css
+//= link_tree ../../javascript .js
+//= link_tree ../../../vendor/javascript .js
+//= link_tree ../builds
+//= link active_material/actions-toggle.js
+
+
+
+### app/assets/stylesheets/active_admin.scss ###
+// Sass variable overrides must be declared before loading up Active Admin's styles.
+//
+// To view the variables that Active Admin provides, take a look at
+// `app/assets/stylesheets/active_admin/mixins/_variables.scss` in the
+// Active Admin source.
+//
+// For example, to change the sidebar width:
+// $sidebar-width: 242px;
+
+// Active Admin's got SASS!
+@import "active_admin/mixins";
+@import "active_admin/base";
+
+// Overriding any non-variable Sass must be done after the fact.
+// For example, to change the default status-tag color:
+//
+//   .status_tag { background: #6090DB; }
+
+
+@import "active_admin/mixins";
+@import "active_admin/base";
+@import "trix";
+
+// Fix for ActiveAdmin and Trix compatibility
+trix-editor {
+  min-height: 200px;
+  border: 1px solid #ccc;
+  padding: 10px;
+  font-size: 14px;
+}
+
+
+
+### app/assets/stylesheets/application.css ###
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS (and SCSS, if configured) file within this directory, lib/assets/stylesheets, or any plugin's
+ * vendor/assets/stylesheets directory can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the bottom of the
+ * compiled file so the styles you add here take precedence over styles defined in any other CSS
+ * files in this directory. Styles in this file should be added after the last require_* statement.
+ * It is generally better to create a new file per style scope.
+ *
+ *= require_tree .
+ *= require_self
+ */
+ /*
+ *= require trix
+ */
+
+
+
+### app/assets/stylesheets/application.tailwind.css ###
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+
+@layer components {
+  .btn-primary {
+    @apply py-2 px-4 bg-blue-200;
+  }
+}
+
+*/
+@import 'actiontext.css';
+
+
+### app/assets/stylesheets/actiontext.css ###
+/*
+ * Provides a drop-in pointer for the default Trix stylesheet that will format the toolbar and
+ * the trix-editor content (whether displayed or under editing). Feel free to incorporate this
+ * inclusion directly in any other asset bundle and remove this file.
+ *
+ *= require trix
+*/
+
+/*
+ * We need to override trix.css’s image gallery styles to accommodate the
+ * <action-text-attachment> element we wrap around attachments. Otherwise,
+ * images in galleries will be squished by the max-width: 33%; rule.
+*/
+.trix-content .attachment-gallery > action-text-attachment,
+.trix-content .attachment-gallery > .attachment {
+  flex: 1 0 33%;
+  padding: 0 0.5em;
+  max-width: 33%;
+}
+
+.trix-content .attachment-gallery.attachment-gallery--2 > action-text-attachment,
+.trix-content .attachment-gallery.attachment-gallery--2 > .attachment, .trix-content .attachment-gallery.attachment-gallery--4 > action-text-attachment,
+.trix-content .attachment-gallery.attachment-gallery--4 > .attachment {
+  flex-basis: 50%;
+  max-width: 50%;
+}
+
+.trix-content action-text-attachment .attachment {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+
+
+
+### app/assets/builds/tailwind.css ###
+/*! tailwindcss v3.4.6 | MIT License | https://tailwindcss.com*/*,:after,:before{border:0 solid #e5e7eb;box-sizing:border-box}:after,:before{--tw-content:""}:host,html{-webkit-text-size-adjust:100%;font-feature-settings:normal;-webkit-tap-highlight-color:transparent;font-family:Inter var,ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-variation-settings:normal;line-height:1.5;-moz-tab-size:4;-o-tab-size:4;tab-size:4}body{line-height:inherit;margin:0}hr{border-top-width:1px;color:inherit;height:0}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-feature-settings:normal;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-size:1em;font-variation-settings:normal}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:initial}sub{bottom:-.25em}sup{top:-.5em}table{border-collapse:collapse;border-color:inherit;text-indent:0}button,input,optgroup,select,textarea{font-feature-settings:inherit;color:inherit;font-family:inherit;font-size:100%;font-variation-settings:inherit;font-weight:inherit;letter-spacing:inherit;line-height:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:initial;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:initial}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{color:#9ca3af;opacity:1}input::placeholder,textarea::placeholder{color:#9ca3af;opacity:1}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{height:auto;max-width:100%}[hidden]{display:none}[multiple],[type=date],[type=datetime-local],[type=email],[type=month],[type=number],[type=password],[type=search],[type=tel],[type=text],[type=time],[type=url],[type=week],select,textarea{--tw-shadow:0 0 #0000;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-color:#fff;border-color:#6b7280;border-radius:0;border-width:1px;font-size:1rem;line-height:1.5rem;padding:.5rem .75rem}[multiple]:focus,[type=date]:focus,[type=datetime-local]:focus,[type=email]:focus,[type=month]:focus,[type=number]:focus,[type=password]:focus,[type=search]:focus,[type=tel]:focus,[type=text]:focus,[type=time]:focus,[type=url]:focus,[type=week]:focus,select:focus,textarea:focus{--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);border-color:#2563eb;box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow);outline:2px solid #0000;outline-offset:2px}input::-moz-placeholder,textarea::-moz-placeholder{color:#6b7280;opacity:1}input::placeholder,textarea::placeholder{color:#6b7280;opacity:1}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-date-and-time-value{min-height:1.5em}::-webkit-datetime-edit,::-webkit-datetime-edit-day-field,::-webkit-datetime-edit-hour-field,::-webkit-datetime-edit-meridiem-field,::-webkit-datetime-edit-millisecond-field,::-webkit-datetime-edit-minute-field,::-webkit-datetime-edit-month-field,::-webkit-datetime-edit-second-field,::-webkit-datetime-edit-year-field{padding-bottom:0;padding-top:0}select{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");background-position:right .5rem center;background-repeat:no-repeat;background-size:1.5em 1.5em;padding-right:2.5rem;-webkit-print-color-adjust:exact;print-color-adjust:exact}[multiple]{background-image:none;background-position:0 0;background-repeat:unset;background-size:initial;padding-right:.75rem;-webkit-print-color-adjust:unset;print-color-adjust:unset}[type=checkbox],[type=radio]{--tw-shadow:0 0 #0000;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-color:#fff;background-origin:border-box;border-color:#6b7280;border-width:1px;color:#2563eb;display:inline-block;flex-shrink:0;height:1rem;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-user-select:none;-moz-user-select:none;user-select:none;vertical-align:middle;width:1rem}[type=checkbox]{border-radius:0}[type=radio]{border-radius:100%}[type=checkbox]:focus,[type=radio]:focus{--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:2px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow);outline:2px solid #0000;outline-offset:2px}[type=checkbox]:checked,[type=radio]:checked{background-color:currentColor;background-position:50%;background-repeat:no-repeat;background-size:100% 100%;border-color:#0000}[type=checkbox]:checked{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23fff' viewBox='0 0 16 16'%3E%3Cpath d='M12.207 4.793a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L6.5 9.086l4.293-4.293a1 1 0 0 1 1.414 0z'/%3E%3C/svg%3E")}[type=radio]:checked{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23fff' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E")}[type=checkbox]:checked:focus,[type=checkbox]:checked:hover,[type=checkbox]:indeterminate,[type=radio]:checked:focus,[type=radio]:checked:hover{background-color:currentColor;border-color:#0000}[type=checkbox]:indeterminate{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8h8'/%3E%3C/svg%3E");background-position:50%;background-repeat:no-repeat;background-size:100% 100%}[type=checkbox]:indeterminate:focus,[type=checkbox]:indeterminate:hover{background-color:currentColor;border-color:#0000}[type=file]{background:unset;border-color:inherit;border-radius:0;border-width:0;font-size:unset;line-height:inherit;padding:0}[type=file]:focus{outline:1px solid ButtonText;outline:1px auto -webkit-focus-ring-color}*,::backdrop,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:#3b82f680;--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }.container{width:100%}@media (min-width:640px){.container{max-width:640px}}@media (min-width:768px){.container{max-width:768px}}@media (min-width:1024px){.container{max-width:1024px}}@media (min-width:1280px){.container{max-width:1280px}}@media (min-width:1536px){.container{max-width:1536px}}.static{position:static}.absolute{position:absolute}.relative{position:relative}.right-0{right:0}.top-0{top:0}.mx-auto{margin-left:auto;margin-right:auto}.my-4{margin-bottom:1rem;margin-top:1rem}.mb-2{margin-bottom:.5rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mr-2{margin-right:.5rem}.mr-4{margin-right:1rem}.mt-1{margin-top:.25rem}.mt-2{margin-top:.5rem}.mt-4{margin-top:1rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.block{display:block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.h-16{height:4rem}.h-48{height:12rem}.h-8{height:2rem}.h-auto{height:auto}.w-1\/2{width:50%}.w-1\/4{width:25%}.w-16{width:4rem}.w-8{width:2rem}.w-full{width:100%}.min-w-full{min-width:100%}.max-w-2xl{max-width:42rem}.max-w-3xl{max-width:48rem}.max-w-md{max-width:28rem}.flex-grow{flex-grow:1}.list-none{list-style-type:none}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-4{gap:1rem}.space-x-2>:not([hidden])~:not([hidden]){--tw-space-x-reverse:0;margin-left:calc(.5rem*(1 - var(--tw-space-x-reverse)));margin-right:calc(.5rem*var(--tw-space-x-reverse))}.space-x-4>:not([hidden])~:not([hidden]){--tw-space-x-reverse:0;margin-left:calc(1rem*(1 - var(--tw-space-x-reverse)));margin-right:calc(1rem*var(--tw-space-x-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-bottom:calc(.5rem*var(--tw-space-y-reverse));margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)))}.space-y-4>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-bottom:calc(1rem*var(--tw-space-y-reverse));margin-top:calc(1rem*(1 - var(--tw-space-y-reverse)))}.space-y-6>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-bottom:calc(1.5rem*var(--tw-space-y-reverse));margin-top:calc(1.5rem*(1 - var(--tw-space-y-reverse)))}.divide-y>:not([hidden])~:not([hidden]){--tw-divide-y-reverse:0;border-bottom-width:calc(1px*var(--tw-divide-y-reverse));border-top-width:calc(1px*(1 - var(--tw-divide-y-reverse)))}.divide-gray-200>:not([hidden])~:not([hidden]){--tw-divide-opacity:1;border-color:rgb(229 231 235/var(--tw-divide-opacity))}.whitespace-nowrap{white-space:nowrap}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-b{border-bottom-left-radius:.25rem;border-bottom-right-radius:.25rem}.border{border-width:1px}.border-t-4{border-top-width:4px}.border-gray-300{--tw-border-opacity:1;border-color:rgb(209 213 219/var(--tw-border-opacity))}.border-transparent{border-color:#0000}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity))}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235/var(--tw-bg-opacity))}.bg-gray-800{--tw-bg-opacity:1;background-color:rgb(31 41 55/var(--tw-bg-opacity))}.bg-green-600{--tw-bg-opacity:1;background-color:rgb(22 163 74/var(--tw-bg-opacity))}.bg-indigo-600{--tw-bg-opacity:1;background-color:rgb(79 70 229/var(--tw-bg-opacity))}.bg-red-600{--tw-bg-opacity:1;background-color:rgb(220 38 38/var(--tw-bg-opacity))}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity))}.object-cover{-o-object-fit:cover;object-fit:cover}.p-4{padding:1rem}.p-6{padding:1.5rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-1{padding-bottom:.25rem;padding-top:.25rem}.py-2{padding-bottom:.5rem;padding-top:.5rem}.py-3{padding-bottom:.75rem;padding-top:.75rem}.py-4{padding-bottom:1rem;padding-top:1rem}.text-left{text-align:left}.text-center{text-align:center}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-tight{line-height:1.25}.tracking-wider{letter-spacing:.05em}.text-blue-600{--tw-text-opacity:1;color:rgb(37 99 235/var(--tw-text-opacity))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128/var(--tw-text-opacity))}.text-gray-700{--tw-text-opacity:1;color:rgb(55 65 81/var(--tw-text-opacity))}.text-indigo-600{--tw-text-opacity:1;color:rgb(79 70 229/var(--tw-text-opacity))}.text-red-100{--tw-text-opacity:1;color:rgb(254 226 226/var(--tw-text-opacity))}.text-red-500{--tw-text-opacity:1;color:rgb(239 68 68/var(--tw-text-opacity))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity))}.shadow-md{--tw-shadow:0 4px 6px -1px #0000001a,0 2px 4px -2px #0000001a;--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color),0 2px 4px -2px var(--tw-shadow-color)}.shadow-md,.shadow-sm{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 #0000000d;--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color)}.filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.hover\:bg-blue-700:hover{--tw-bg-opacity:1;background-color:rgb(29 78 216/var(--tw-bg-opacity))}.hover\:bg-gray-800:hover{--tw-bg-opacity:1;background-color:rgb(31 41 55/var(--tw-bg-opacity))}.hover\:bg-green-700:hover{--tw-bg-opacity:1;background-color:rgb(21 128 61/var(--tw-bg-opacity))}.hover\:bg-indigo-700:hover{--tw-bg-opacity:1;background-color:rgb(67 56 202/var(--tw-bg-opacity))}.hover\:bg-red-700:hover{--tw-bg-opacity:1;background-color:rgb(185 28 28/var(--tw-bg-opacity))}.hover\:text-blue-900:hover{--tw-text-opacity:1;color:rgb(30 58 138/var(--tw-text-opacity))}.hover\:text-gray-400:hover{--tw-text-opacity:1;color:rgb(156 163 175/var(--tw-text-opacity))}.hover\:text-indigo-900:hover{--tw-text-opacity:1;color:rgb(49 46 129/var(--tw-text-opacity))}.focus\:border-indigo-500:focus{--tw-border-opacity:1;border-color:rgb(99 102 241/var(--tw-border-opacity))}.focus\:outline-none:focus{outline:2px solid #0000;outline-offset:2px}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.focus\:ring-blue-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(59 130 246/var(--tw-ring-opacity))}.focus\:ring-indigo-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(99 102 241/var(--tw-ring-opacity))}.focus\:ring-red-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(239 68 68/var(--tw-ring-opacity))}.focus\:ring-offset-2:focus{--tw-ring-offset-width:2px}@media (min-width:640px){.sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.sm\:text-sm{font-size:.875rem;line-height:1.25rem}}@media (min-width:768px){.md\:w-1\/2{width:50%}.md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (min-width:1024px){.lg\:w-1\/4{width:25%}.lg\:w-3\/4{width:75%}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+
+### app/assets/builds/.keep ###
+
+
+
+### app/views/shopping_cart_items/index.html.erb ###
+<h1 class="text-3xl font-bold mb-6 text-center">Shopping Cart</h1>
+
+<div class="container mx-auto">
+  <% if @shopping_cart_items.any? %>
+    <div class="space-y-4">
+      <% @shopping_cart_items.each do |item| %>
+        <% product = item.product || Product.find_by(id: item['product_id']) %>
+        <div class="border border-gray-300 rounded-md p-4 bg-white">
+          <div class="space-y-2">
+            <div class="flex items-center space-x-4">
+              <% if product&.image&.attached? %>
+                <%= image_tag product.image, class: "w-16 h-16 object-cover" %>
+              <% end %>
+              <div>
+                <% if product %>
+                  <h2 class="text-xl font-bold"><%= product.name %></h2>
+                  <p class="text-lg"><%= number_to_currency(product.price) %></p>
+                <% else %>
+                  <h2 class="text-xl font-bold">Product not found</h2>
+                <% end %>
+              </div>
+            </div>
+            <div>
+              <% if user_signed_in? %>
+                <%= form_with(model: item, url: shopping_cart_item_path(item), method: :patch, local: true) do |form| %>
+                  <div class="flex items-center space-x-2">
+                    <%= form.number_field :quantity, value: item.quantity, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+                    <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
+                  </div>
+                <% end %>
+              <% else %>
+                <%= form_with(url: shopping_cart_item_path(item['product_id']), method: :patch, local: true) do |form| %>
+                  <div class="flex items-center space-x-2">
+                    <%= form.number_field :quantity, value: item['quantity'], min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+                    <%= form.hidden_field :product_id, value: item['product_id'] %>
+                    <%= form.submit 'Update', class: "px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700" %>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+            <div>
+              <% if user_signed_in? %>
+                <% total_price = item.total_price_with_tax %>
+                <% Rails.logger.debug "User signed in: item: #{item.inspect}, product: #{product.inspect}, total_price_with_tax: #{total_price}" %>
+              <% else %>
+                <% total_price = item['quantity'].to_i * product.price %>
+                <% Rails.logger.debug "User not signed in: item: #{item.inspect}, product: #{product.inspect}, total_price: #{total_price}" %>
+              <% end %>
+              <p class="text-lg font-bold">Total: <%= number_to_currency(total_price) %></p>
+            </div>
+            <div>
+              <% if user_signed_in? %>
+                <%= button_to 'Remove', shopping_cart_item_path(item), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
+              <% else %>
+                <%= button_to 'Remove', shopping_cart_item_path(item['product_id']), method: :delete, data: { confirm: 'Are you sure?' }, class: "px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-center">Your cart is empty.</p>
+  <% end %>
+
+  <% if @shopping_cart_items.any? %>
+    <div class="mt-6 text-center">
+      <%= link_to 'Checkout', new_order_path, class: 'px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700' %>
+    </div>
+  <% end %>
+</div>
+
+
+### app/views/orders/show.html.erb ###
+<h1 class="text-2xl font-bold mb-4">Order Details</h1>
+
+<div class="order-details bg-white p-6 rounded-lg shadow-md space-y-4">
+  <p class="flex justify-between items-center">
+    <strong>Order ID:</strong>
+    <span><%= @order.id %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Customer:</strong>
+    <span><%= @order.user.email if @order.user %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Order Date:</strong>
+    <span><%= @order.created_at %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Status:</strong>
+    <span><%= @order.status %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Address:</strong>
+    <span><%= @order.address %></span>
+  </p>
+</div>
+
+<h2 class="text-xl font-semibold my-4">Order Items</h2>
+<div class="order-items bg-white p-6 rounded-lg shadow-md">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead>
+      <tr>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+      <% @order.order_items.each do |item| %>
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap"><%= item.product.name %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= item.quantity %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.price) %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.quantity * item.price) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<div class="bg-white p-6 rounded-lg shadow-md mt-4 space-y-2">
+  <p class="flex justify-between items-center">
+    <strong>GST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.gst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>PST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.pst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>HST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.hst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>QST:</strong>
+    <span><%= number_to_currency(@order.subtotal * @order.province.qst_rate) %></span>
+  </p>
+  <p class="flex justify-between items-center">
+    <strong>Total Price:</strong>
+    <span><%= number_to_currency(@order.total_price) %></span>
+  </p>
+</div>
+
+<div class="mt-4">
+  <%= link_to 'Back to Orders', orders_path, class: "text-blue-600 hover:text-blue-900" %>
+</div>
+
+
+
+### app/views/orders/index.html.erb ###
+<h1 class="text-2xl font-bold mb-4">My Orders</h1>
+<div class="orders-list bg-white p-6 rounded-lg shadow-md">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead>
+      <tr>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+      <% @orders.each do |order| %>
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap"><%= order.id %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= order.created_at %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= order.status %></td>
+          <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(order.total_price) %></td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <%= link_to 'View', order_path(order), class: 'text-blue-600 hover:text-blue-900' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<% @orders.each do |order| %>
+  <div class="bg-white p-6 rounded-lg shadow-md mb-4">
+    <h2 class="text-xl font-semibold mb-2">Order ID: <%= order.id %></h2>
+    <p><strong>Order Date:</strong> <%= order.created_at %></p>
+    <p><strong>Status:</strong> <%= order.status %></p>
+    <p><strong>Address:</strong> <%= order.address %></p>
+
+    <h3 class="text-lg font-semibold mt-4">Order Items</h3>
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead>
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        <% order.order_items.each do |item| %>
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap"><%= item.product.name %></td>
+            <td class="px-6 py-4 whitespace-nowrap"><%= item.quantity %></td>
+            <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.price) %></td>
+            <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.quantity * item.price) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <% province = order.province %>
+    <% gst = order.subtotal * province.gst_rate %>
+    <% pst = order.subtotal * province.pst_rate %>
+    <% hst = order.subtotal * province.hst_rate %>
+    <% qst = order.subtotal * province.qst_rate %>
+
+    <div class="mt-4">
+      <p><strong>GST:</strong> <%= number_to_currency(gst) %></p>
+      <p><strong>PST:</strong> <%= number_to_currency(pst) %></p>
+      <p><strong>HST:</strong> <%= number_to_currency(hst) %></p>
+      <p><strong>QST:</strong> <%= number_to_currency(qst) %></p>
+      <p><strong>Total Price:</strong> <%= number_to_currency(order.total_price) %></p>
+    </div>
+  </div>
+<% end %>
+
+
+
+### app/views/orders/new.html.erb ###
+<h1 class="text-2xl font-bold mb-4">Checkout</h1>
+<%= form_for @order, html: { id: 'payment-form' } do |f| %>
+  <div class="space-y-6 container mx-auto flex flex-col items-center">
+    <!-- Order Summary Section -->
+    <div class="order-summary bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
+      <div class="space-y-4">
+        <div>
+          <strong>Order ID:</strong>
+          <span>N/A</span>
+        </div>
+        <div>
+          <strong>Customer:</strong>
+          <span><%= current_user.email %></span>
+        </div>
+        <div>
+          <strong>Address:</strong>
+          <span><%= current_user.address %></span>
+        </div>
+        <div>
+          <strong>Order Date:</strong>
+          <span><%= Time.current %></span>
+        </div>
+        <div>
+          <strong>Status:</strong>
+          <span>Pending</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Items Section -->
+    <div class="order-items bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
+      <h2 class="text-xl font-semibold mb-4">Order Items</h2>
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead>
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% @shopping_cart_items.each do |item| %>
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap"><%= item.product.name %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= item.quantity %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.product.price) %></td>
+              <td class="px-6 py-4 whitespace-nowrap"><%= number_to_currency(item.product.price * item.quantity) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Order Details Section -->
+    <div class="order-details bg-white p-6 rounded-lg shadow-md w-full max-w-2xl">
+      <h2 class="text-xl font-semibold mb-4">Order Details</h2>
+      <div class="space-y-4">
+        <div class="flex justify-between items-center">
+          <strong>Subtotal:</strong>
+          <span><%= number_to_currency(@shopping_cart_total) %></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <strong>GST:</strong>
+          <span><%= number_to_currency(@gst) %></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <strong>PST:</strong>
+          <span><%= number_to_currency(@pst) %></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <strong>HST:</strong>
+          <span><%= number_to_currency(@hst) %></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <strong>QST:</strong>
+          <span><%= number_to_currency(@qst) %></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <strong>Total:</strong>
+          <span><%= number_to_currency(@shopping_cart_total + @gst + @pst + @hst + @qst) %></span>
+        </div>
+
+        <!-- Form Fields -->
+        <div class="mb-4">
+          <%= f.label :receiver_name, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :receiver_name, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+        <div class="mb-4">
+          <%= f.label :address, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :address, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+        <div class="mb-4">
+          <%= f.label :city, class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :city, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+        <div class="mb-4">
+          <%= f.label :postal_code, "Postal Code", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :postal_code, id: 'postal-code', class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+        <div class="mb-4">
+          <%= f.label :province_id, "Province", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+        <div class="mb-4">
+          <%= f.label :shipping_type_id, "Shipping Type", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+        </div>
+
+        <!-- Stripe Payment Section -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700">Card Information</label>
+          <div id="card-element" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"></div>
+          <div id="card-errors" role="alert" class="text-red-500 mt-2"></div>
+        </div>
+
+        <div>
+          <%= f.submit "Place Order", class: "w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" %>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<%= javascript_include_tag 'https://js.stripe.com/v3/' %>
+<script>
+  document.addEventListener("turbo:load", function() {
+    var stripe = Stripe('<%= ENV["STRIPE_PUBLISHABLE_KEY"] %>');
+    var elements = stripe.elements();
+    var card = elements.create('card', { hidePostalCode: true });
+    card.mount('#card-element');
+
+    card.on('change', function(event) {
+      var displayError = document.getElementById('card-errors');
+      if (event.error) {
+        displayError.textContent = event.error.message;
+      } else {
+        displayError.textContent = '';
+      }
+    });
+
+    var form = document.getElementById('payment-form');
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      stripe.createPaymentMethod({
+        type: 'card',
+        card: card,
+        billing_details: {
+          address: {
+            postal_code: document.getElementById('postal-code').value
+          }
+        }
+      }).then(function(result) {
+        if (result.error) {
+          var errorElement = document.getElementById('card-errors');
+          errorElement.textContent = result.error.message;
+        } else {
+          var hiddenInput = document.createElement('input');
+          hiddenInput.setAttribute('type', 'hidden');
+          hiddenInput.setAttribute('name', 'payment_method_id');
+          hiddenInput.setAttribute('value', result.paymentMethod.id);
+          form.appendChild(hiddenInput);
+
+          form.submit();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+### app/views/users/show.html.erb ###
+<!-- app/views/users/show.html.erb -->
+
+<h1>My Account</h1>
+<p><%= link_to 'Edit Profile', edit_user_registration_path %></p>
+
+<h2>Past Orders</h2>
+<% if @user.orders.any? %>
+  <table>
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Date</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @user.orders.each do |order| %>
+        <tr>
+          <td><%= order.id %></td>
+          <td><%= order.created_at.strftime("%Y-%m-%d") %></td>
+          <td><%= number_to_currency(order.total_price) %></td> <!-- Make sure you use the correct attribute for total -->
+          <td><%= order.status %></td>
+          <td><%= link_to 'View', order_path(order) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>You have no past orders.</p>
+<% end %>
+
+
+
+### app/views/devise/sessions/new.html.erb ###
+<h2 class="text-2xl font-bold mb-6 text-center">Log in</h2>
+
+<div class="max-w-2xl p-6 bg-white rounded-md shadow-md w-1/2 mx-auto">
+  <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
+    <%= devise_error_messages! %>
+
+    <div class="mb-4">
+      <%= f.label :email, class: "block text-gray-700 font-semibold mb-2" %>
+      <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+    </div>
+
+    <div class="mb-4">
+      <%= f.label :password, class: "block text-gray-700 font-semibold mb-2" %>
+      <%= f.password_field :password, autocomplete: "current-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+    </div>
+
+    <div class="mb-4">
+      <%= f.check_box :remember_me, class: "mr-2 leading-tight" %>
+      <%= f.label :remember_me, class: "text-sm text-gray-700" %>
+    </div>
+
+    <div class="mt-6">
+      <%= f.submit "Log in", class: "w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" %>
+    </div>
+  <% end %>
+
+  <div class="text-center mt-4">
+    <%= render "devise/shared/links" %>
+  </div>
+</div>
+
+
+
+### app/views/devise/registrations/edit.html.erb ###
+<h2 class="text-2xl font-bold mb-6 text-center">Edit <%= resource_name.to_s.humanize %></h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, class: "max-w-md mx-auto p-6 bg-white rounded-md shadow-md" }) do |f| %>
+  <%= devise_error_messages! %>
+
+  <div class="mb-4">
+    <%= f.label :username, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :username, autofocus: true, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :email, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.email_field :email, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :first_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :first_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :last_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :last_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :address, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :address, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :city, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :city, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :zip, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :zip, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :phone_number, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :phone_number, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :province_id, 'Province', class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password, class: "block text-gray-700 font-semibold mb-2" %> 
+    <span class="text-sm text-gray-500">(leave blank if you don't want to change it)</span>
+    <%= f.password_field :password, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password_confirmation, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :current_password, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :current_password, autocomplete: "current-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mt-6">
+    <%= f.submit "Update", class: "w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" %>
+  </div>
+<% end %>
+
+<h3 class="text-xl font-bold mt-8">Cancel my account</h3>
+<%= button_to "Cancel my account", registration_path(resource_name), method: :delete, data: { confirm: "Are you sure?" }, class: "mt-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" %>
+
+<%= link_to "Back", :back, class: "mt-4 block text-center text-indigo-600 hover:text-indigo-900" %>
+
+
+
+### app/views/devise/registrations/new.html.erb ###
+<h2 class="text-2xl font-bold mb-6">Sign up</h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "max-w-2xl p-6 bg-white rounded-md shadow-md w-1/2" }) do |f| %>
+  <%= devise_error_messages! %>
+
+  <div class="mb-4">
+    <%= f.label :username, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :username, autofocus: true, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :email, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.email_field :email, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :password, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :password_confirmation, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :first_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :first_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :last_name, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :last_name, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :address, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :address, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :city, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :city, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :zip, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :zip, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :phone_number, class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.text_field :phone_number, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mb-4">
+    <%= f.label :province_id, 'Province', class: "block text-gray-700 font-semibold mb-2" %>
+    <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" %>
+  </div>
+
+  <div class="mt-6">
+    <%= f.submit "Sign up", class: "w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" %>
+  </div>
+<% end %>
+
+
+
+### app/views/layouts/action_text/contents/_content.html.erb ###
+<div class="trix-content">
+  <%= yield -%>
+</div>
+
+
+
+### app/views/layouts/mailer.html.erb ###
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style>
+      /* Email styles need to be inline */
+    </style>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>
+
+
+
+### app/views/layouts/mailer.text.erb ###
+<%= yield %>
+
+
+
+### app/views/layouts/application.html.erb ###
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ReaditOnlineBookstore</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= stylesheet_link_tag "tailwind", "inter-font", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+
+    <!-- Add Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
+  </head>
+
+  <body>
+    <header class="bg-gray-800 text-white p-4">
+      <div class="container mx-auto flex justify-between items-center">
+        <h1 class="text-xl"><%= link_to "ReaditOnlineBookstore", root_path %></h1>
+        <nav>
+          <ul class="flex space-x-4 items-center list-none">
+            <li><%= link_to "Home", root_path, class: "text-white hover:text-gray-400" %></li>
+            <li><%= link_to "Contact", contact_path, class: "text-white hover:text-gray-400" %></li>
+            <li><%= link_to "About", about_path, class: "text-white hover:text-gray-400" %></li>
+            <% if user_signed_in? %>
+              <li><%= link_to "My Orders", orders_path, class: "text-white hover:text-gray-400" %></li>
+              <li><%= button_to "Logout", destroy_user_session_path, method: :delete, class: "text-white hover:text-gray-400" %></li>
+            <% else %>
+              <li><%= link_to "Register", new_user_registration_path, class: "text-white hover:text-gray-400" %></li>
+              <li><%= link_to "Login", new_user_session_path, class: "text-white hover:text-gray-400" %></li>
+            <% end %>
+            <li class="relative">
+              <%= link_to shopping_cart_items_path, class: "text-white relative" do %>
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l1.4-7H6.4L7 13zm0 0H5a1 1 0 0 1-1-1H4m13 1a1 1 0 0 0 1-1h1m-9 5a1 1 0 1 0 0-2h6a1 1 0 1 0 0-2H9a1 1 0 1 0 0 2h6zm-2 0a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2H7zm2 0a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2H9z"></path>
+                </svg>
+                <% if user_signed_in? %>
+                  <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    <%= current_user.shopping_cart_items.size %>
+                  </span>
+                <% elsif session[:shopping_cart].present? %>
+                  <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                    <%= session[:shopping_cart].size %>
+                  </span>
+                <% end %>
+              <% end %>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container mx-auto px-5 flex flex-col space-y-4">
+      <!-- Flash messages -->
+      <% flash.each do |key, value| %>
+        <div class="alert alert-<%= key %> bg-<%= flash_class(key) %>-100 border-t-4 border-<%= flash_class(key) %>-500 rounded-b text-<%= flash_class(key) %>-900 px-4 py-3 shadow-md mb-2" role="alert">
+          <div class="flex">
+            <div>
+              <p class="text-sm"><%= value %></p>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>
+
+
+
+### app/views/active_storage/blobs/_blob.html.erb ###
+<figure class="attachment attachment--<%= blob.representable? ? "preview" : "file" %> attachment--<%= blob.filename.extension %>">
+  <% if blob.representable? %>
+    <%= image_tag blob.representation(resize_to_limit: local_assigns[:in_gallery] ? [ 800, 600 ] : [ 1024, 768 ]) %>
+  <% end %>
+
+  <figcaption class="attachment__caption">
+    <% if caption = blob.try(:caption) %>
+      <%= caption %>
+    <% else %>
+      <span class="attachment__name"><%= blob.filename %></span>
+      <span class="attachment__size"><%= number_to_human_size blob.byte_size %></span>
+    <% end %>
+  </figcaption>
+</figure>
+
+
+
+### app/views/pages/show.html.erb ###
+<!-- app/views/pages/show.html.erb -->
+<div class="page-content">
+  <h1><%= @page.title %></h1>
+  <p><%= raw @page.content %></p>
+</div>
+
+
+
+### app/views/products/show.html.erb ###
+<div class="container mx-auto mt-8">
+  <h1 class="text-3xl font-bold mb-4 text-center"><%= @product.name %></h1>
+
+  <div class="flex flex-wrap justify-center">
+    <div class="w-full md:w-1/2 p-4">
+      <% if @product.image.attached? %>
+        <%= image_tag url_for(@product.image), class: "w-full h-auto object-cover" %>
+      <% else %>
+        <p>No image available</p>
+      <% end %>
+    </div>
+
+    <div class="w-full md:w-1/2 p-4">
+      <div class="product-info">
+        <p><strong>Description:</strong> <%= @product.description %></p>
+        <p><strong>Author:</strong> <%= @product.author %></p>
+        <p><strong>Price:</strong> <%= number_to_currency(@product.price) %></p>
+        <p><strong>In Stock:</strong> <%= @product.number_in_stock %></p>
+        <p><strong>Category:</strong> <%= link_to @product.category.name, products_path(category_id: @product.category_id), class: "text-indigo-600 hover:text-indigo-900" %></p>
+      </div>
+
+      <%= form_with url: shopping_cart_items_path, method: :post, local: true do |f| %>
+        <%= f.hidden_field "shopping_cart_item[product_id]", value: @product.id %>
+        <%= f.number_field "shopping_cart_item[quantity]", value: 1, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+        <%= f.submit 'Add to Cart', class: "mt-2 px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700" %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <h2 class="text-2xl font-bold mb-4">Other books in the same category</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <% @related_products.each do |related_product| %>
+        <% if related_product.image.attached? %>
+          <div class="product border border-gray-300 rounded-md p-4">
+            <h2 class="text-xl font-bold mb-2"><%= link_to related_product.name, product_path(related_product), class: "text-indigo-600 hover:text-indigo-900" %></h2>
+            <p class="text-lg font-medium text-gray-700 mb-2"><%= number_to_currency(related_product.price) %></p>
+            <%= image_tag url_for(related_product.image), class: "w-full h-48 object-cover" %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mt-8 text-center">
+    <%= link_to 'Back to Products', products_path, class: "px-4 py-2 bg-black text-white rounded-md shadow-sm hover:bg-gray-800" %>
+  </div>
+</div>
+
+
+
+### app/views/products/index.html.erb ###
+<h1 class="text-3xl font-bold mb-4">All Books</h1>
+
+<div class="container mx-auto">
+  <div class="flex justify-center mb-4">
+    <div class="search-form flex items-center space-x-4 w-full max-w-3xl">
+      <%= form_with url: products_path, method: :get, local: true, class: "flex items-center w-full" do %>
+        <div class="flex-grow">
+          <%= label_tag :keyword, "Keyword", class: "block text-lg font-medium text-gray-700" %>
+          <%= text_field_tag "search[keyword]", params.dig(:search, :keyword), class: "block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+        </div>
+        <div class="w-1/4">
+          <%= label_tag :category_id, "Category", class: "block text-lg font-medium text-gray-700" %>
+          <%= select_tag "search[category_id]", options_from_collection_for_select(@categories, :id, :name, params.dig(:search, :category_id)), include_blank: "All Categories", class: "block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+        </div>
+        <div>
+          <%= submit_tag "Search", class: "px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="filters mb-4">
+    <%= link_to 'All', products_path, class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'On Sale', products_path(filter: 'on_sale'), class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'New', products_path(filter: 'new'), class: "mr-4 text-indigo-600 hover:text-indigo-900" %>
+    <%= link_to 'Recently Updated', products_path(filter: 'recently_updated'), class: "text-indigo-600 hover:text-indigo-900" %>
+  </div>
+
+  <div class="flex flex-wrap">
+    <div class="w-full lg:w-1/4 p-4">
+      <h2 class="text-2xl font-bold mb-4">Categories</h2>
+      <ul>
+        <% @categories.each do |category| %>
+          <li><%= link_to category.name, products_path(category_id: category.id, category_page: params[:category_page]), class: "text-indigo-600 hover:text-indigo-900" %></li>
+        <% end %>
+      </ul>
+      <%= paginate @categories, param_name: 'category_page', class: "mt-4" %>
+    </div>
+
+    <div class="w-full lg:w-3/4 p-4">
+      <% if @selected_category.present? %>
+        <h2 class="text-2xl font-bold mb-4"><%= @selected_category.name %> Books</h2>
+      <% end %>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <% if @products.any? %>
+          <% @products.each do |product| %>
+            <div class="product border border-gray-300 rounded-md p-4">
+              <h2 class="text-xl font-bold mb-2"><%= link_to product.name, product_path(product), class: "text-indigo-600 hover:text-indigo-900" %></h2>
+              <p class="text-lg font-medium text-gray-700 mb-2"><%= number_to_currency(product.price) %></p>
+              <p class="text-sm text-gray-500 mb-2"><%= product.author if product.author.present? %></p>
+              <%= image_tag url_for(product.image), class: "w-full h-48 object-cover" if product.image.attached? %>
+              <%= form_with url: shopping_cart_items_path, method: :post, local: true do |f| %>
+                <%= f.hidden_field "shopping_cart_item[product_id]", value: product.id %>
+                <%= f.number_field "shopping_cart_item[quantity]", value: 1, min: 1, class: "w-16 text-center border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" %>
+                <%= f.submit 'Add to Cart', class: "mt-2 px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700" %>
+              <% end %>
+            </div>
+          <% end %>
+        <% else %>
+          <p>No products available.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <%= paginate @products, class: "mt-8" %>
+  </div>
+</div>
+
+
+
+### app/admin/categories.rb ###
+# app/admin/categories.rb
+ActiveAdmin.register Category do
+  permit_params :name
+
+  index do
+    selectable_column
+    id_column
+    column :name
+    actions
+  end
+
+  filter :name
+
+  form do |f|
+    f.inputs do
+      f.input :name
+    end
+    f.actions
+  end
+
+  # Custom action to fetch categories as JSON
+  collection_action :fetch, method: :get do
+    categories = Category.all
+    render json: categories
+  end
+end
+
+
+
+### app/admin/products.rb ###
+ActiveAdmin.register Product do
+  permit_params :name, :author, :description, :number_in_stock, :price, :category_id, :image
+
+  index do
+    selectable_column
+    id_column
+    column :name
+    column :author
+    column :description
+    column :number_in_stock
+    column :price
+    column :category
+    column :created_at
+    column :updated_at
+    column :image do |product|
+      if product.image.attached?
+        image_tag url_for(product.image), size: '50x50'
+      else
+        'No Image'
+      end
+    end
+    actions
+  end
+
+  filter :name
+  filter :author
+  filter :description
+  filter :price
+  filter :number_in_stock
+  filter :category
+
+  form do |f|
+    f.inputs do
+      f.input :name
+      f.input :author
+      f.input :description
+      f.input :number_in_stock
+      f.input :price
+      f.input :category, as: :select, collection: Category.all.map { |c| [c.name, c.id] }, include_blank: false
+      f.input :image, as: :file
+    end
+    f.actions
+  end
+
+  show do
+    attributes_table do
+      row :name
+      row :author
+      row :description
+      row :number_in_stock
+      row :price
+      row :category
+      row :created_at
+      row :updated_at
+      row :image do |product|
+        if product.image.attached?
+          image_tag url_for(product.image)
+        else
+          'No Image'
+        end
+      end
+    end
+    active_admin_comments
+  end
+
+  controller do
+    def scoped_collection
+      Product.all
+    end
+  end
+
+  config.per_page = 100
+end
+
+
+
+### app/admin/orders.rb ###
+ActiveAdmin.register Order do
+  controller do
+    def new
+      @order = Order.new
+      3.times { @order.order_items.build }
+      new!
+    end
+
+    def edit
+      @order = Order.find(params[:id])
+      # Ensure there are always at least one order_items built
+      if @order.order_items.empty?
+        @order.order_items.build
+      else
+        @order.order_items.each { |item| item.build_product if item.product.nil? }
+      end
+      edit!
+    end
+
+    def update
+      @order = Order.find(params[:id])
+      @order.update(order_params)
+      redirect_to admin_order_path(@order)
+    end
+
+    private
+
+    def order_params
+      params.require(:order).permit(
+        :user_id, :receiver_name, :address, :city, :zip, :province_id, :shipping_type_id, :purchase_date,
+        :status, :subtotal, :total_price, order_items_attributes: %i[id product_id quantity price _destroy]
+      )
+    end
+  end
+
+  permit_params :user_id, :receiver_name, :address, :city, :zip, :province_id, :shipping_type_id, :purchase_date,
+                :status, :subtotal, :total_price, order_items_attributes: %i[id product_id quantity price _destroy]
+
+  index do
+    selectable_column
+    id_column
+    column :user
+    column :receiver_name
+    column :address
+    column :city
+    column :zip
+    column :province
+    column :shipping_type
+    column :purchase_date
+    column :status do |order|
+      status_tag order.status, class: order.status
+    end
+    column :total_price
+    actions
+  end
+
+  filter :user
+  filter :receiver_name
+  filter :city
+  filter :province, as: :select, collection: -> { Province.all.pluck(:name, :id) }
+  filter :shipping_type, as: :select, collection: -> { ShippingType.all.pluck(:name, :id) }
+  filter :purchase_date
+  filter :status
+
+  show do
+    attributes_table do
+      row :id
+      row :user
+      row :receiver_name
+      row :address
+      row :city
+      row :zip
+      row :province
+      row :shipping_type
+      row :purchase_date
+      row :status do |order|
+        status_tag order.status, class: order.status
+      end
+      row :total_price
+      row :created_at
+      row :updated_at
+    end
+
+    panel 'Order Items' do
+      table_for order.order_items do
+        column :product
+        column :quantity
+        column :price
+        column :total_price do |order_item|
+          number_to_currency order_item.quantity * order_item.price
+        end
+      end
+    end
+
+    active_admin_comments
+  end
+
+  form do |f|
+    f.inputs 'Order Details' do
+      f.input :user
+      f.input :receiver_name
+      f.input :address
+      f.input :city
+      f.input :zip
+      f.input :province, as: :select, collection: Province.all.pluck(:name, :id)
+      f.input :shipping_type, as: :select, collection: ShippingType.all.pluck(:name, :id)
+      f.input :purchase_date, as: :datepicker
+      f.input :status, as: :select, collection: Order.statuses.keys
+    end
+
+    f.inputs 'Order Items' do
+      f.has_many :order_items, allow_destroy: true, new_record: true do |oi|
+        oi.input :product
+        oi.input :quantity
+        oi.input :price
+      end
+    end
+
+    f.actions
+  end
+
+  member_action :mark_as_paid, method: :put do
+    resource.update(status: 'paid')
+    redirect_to resource_path, notice: 'Order marked as paid'
+  end
+
+  member_action :mark_as_shipped, method: :put do
+    resource.update(status: 'shipped')
+    redirect_to resource_path, notice: 'Order marked as shipped'
+  end
+
+  action_item :mark_as_paid, only: :show do
+    link_to 'Mark as Paid', mark_as_paid_admin_order_path(order), method: :put if order.status == 'pending'
+  end
+
+  action_item :mark_as_shipped, only: :show do
+    link_to 'Mark as Shipped', mark_as_shipped_admin_order_path(order), method: :put if order.status == 'paid'
+  end
+end
+
+
+
+### app/admin/province.rb ###
+# app/admin/provinces.rb
+ActiveAdmin.register Province do
+  permit_params :name, :gst_rate, :pst_rate, :hst_rate, :qst_rate
+
+  index do
+    selectable_column
+    id_column
+    column :name
+    column :gst_rate
+    column :pst_rate
+    column :hst_rate
+    column :qst_rate
+    actions
+  end
+
+  filter :name
+  filter :gst_rate
+  filter :pst_rate
+  filter :hst_rate
+  filter :qst_rate
+
+  form do |f|
+    f.inputs do
+      f.input :name
+      f.input :gst_rate
+      f.input :pst_rate
+      f.input :hst_rate
+      f.input :qst_rate
+    end
+    f.actions
+  end
+
+  show do
+    attributes_table do
+      row :name
+      row :gst_rate
+      row :pst_rate
+      row :hst_rate
+      row :qst_rate
+      row :created_at
+      row :updated_at
+    end
+  end
+end
+
+
+
+### app/admin/product_reviews.rb ###
+ActiveAdmin.register ProductReview do
+  permit_params :product_id, :user_id, :review, :rating, :review_date, :reviewer_name
+
+  index do
+    selectable_column
+    id_column
+    column :product
+    column :user
+    column :reviewer_name
+    column :review
+    column :rating
+    column :review_date
+    actions
+  end
+
+  filter :product
+  filter :user
+  filter :reviewer_name
+  filter :rating
+  filter :review_date
+
+  form do |f|
+    f.inputs do
+      f.input :product
+      f.input :user
+      f.input :reviewer_name
+      f.input :review
+      f.input :rating, as: :select, collection: 1..5
+      f.input :review_date, as: :datepicker
+    end
+    f.actions
+  end
+end
+
+
+
+### app/admin/users.rb ###
+ActiveAdmin.register User do
+  permit_params :first_name, :last_name, :email, :address, :city, :phone_number, :province_id, :zip
+
+  filter :first_name
+  filter :last_name
+  filter :email
+  filter :address
+  filter :city
+  filter :phone_number
+  filter :province_id
+  filter :zip
+  filter :created_at
+  filter :updated_at
+
+  index do
+    selectable_column
+    id_column
+    column :first_name
+    column :last_name
+    column :email
+    column :address
+    column :city
+    column :phone_number
+    column :province_id
+    column :zip
+    column :created_at
+    column :updated_at
+    actions
+  end
+
+  show do
+    attributes_table do
+      row :first_name
+      row :last_name
+      row :email
+      row :address
+      row :city
+      row :phone_number
+      row :province_id
+      row :zip
+      row :created_at
+      row :updated_at
+    end
+    active_admin_comments
+  end
+
+  form do |f|
+    f.inputs do
+      f.input :first_name
+      f.input :last_name
+      f.input :email
+      f.input :address
+      f.input :city
+      f.input :zip
+      f.input :province_id, as: :select,
+                            collection: %w[AB BC MB NB NL NS NT NU ON PE QC SK YT], include_blank: false
+      f.input :phone_number
+    end
+    f.actions
+  end
+end
+
+
+
+### app/admin/dashboard.rb ###
+ActiveAdmin.register_page 'Dashboard' do
+  menu priority: 1, label: proc { I18n.t('active_admin.dashboard') }
+
+  content title: proc { I18n.t('active_admin.dashboard') } do
+    # Quick Links panel
+    columns do
+      column do
+        panel 'Quick Links' do
+          ul do
+            li link_to('Products', admin_products_path)
+            li link_to('Categories', admin_categories_path)
+            li link_to('Orders', admin_orders_path)
+            li link_to('Product Reviews', admin_product_reviews_path)
+            li link_to('Admin Users', admin_admin_users_path)
+            li link_to('Users', admin_users_path)
+            li link_to('Provinces', admin_provinces_path) # Added link to Provinces
+          end
+        end
+      end
+    end
+
+    # Statistics panel
+    columns do
+      column do
+        panel 'Statistics' do
+          ul do
+            li "Total Admin Users: #{AdminUser.count}"
+            li "Total Products: #{Product.count}"
+            li "Total Categories: #{Category.count}"
+            li "Total Reviews: #{ProductReview.count}"
+            li "Total Orders: #{Order.count}"
+            li "Total Shipped Orders: #{Order.where(status: 'shipped').count}"
+            li "Total Pending Orders: #{Order.where(status: 'pending').count}"
+            li "Total Registered Customers: #{User.count}"
+          end
+        end
+      end
+    end
+
+    # Recent Orders panel
+    columns do
+      column do
+        panel 'Recent Orders' do
+          table_for Order.order('created_at desc').limit(5) do
+            column('ID') { |order| link_to order.id, admin_order_path(order) }
+            column('Customer') do |order|
+              order.user ? link_to(order.user.email, admin_user_path(order.user)) : 'No Customer'
+            end
+            column('Status') { |order| status_tag(order.status) }
+            column('Total') { |order| number_to_currency order.total_price }
+          end
+        end
+      end
+
+      # Recent Reviews panel
+      column do
+        panel 'Recent Reviews' do
+          table_for ProductReview.order('created_at desc').limit(5) do
+            column('ID') { |review| link_to review.id, admin_product_review_path(review) }
+            column('Product') { |review| link_to review.product.name, admin_product_path(review.product) }
+            column('Rating') { |review| review.rating }
+            column('Review') { |review| truncate(review.review, length: 50) }
+          end
+        end
+      end
+    end
+
+    # Recent Customers panel
+    columns do
+      column do
+        panel 'Recent Customers' do
+          table_for User.order('created_at desc').limit(5) do
+            column('ID') { |user| link_to user.id, admin_user_path(user) }
+            column('Email') { |user| user.email }
+            column('Full Name') { |user| "#{user.first_name} #{user.last_name}" }
+          end
+        end
+      end
+    end
+
+    # All Customers with Orders panel
+    columns do
+      column do
+        panel 'All Customers with Orders' do
+          table_for User.joins(:orders).distinct.order('users.created_at desc') do
+            column('Customer') { |user| link_to user.email, admin_user_path(user) }
+            column('Total Orders') { |user| user.orders.count }
+            column('Total Amount Spent') { |user| number_to_currency user.orders.sum(:total_price) }
+          end
+        end
+      end
+    end
+
+    # Detailed Orders panel
+    columns do
+      column do
+        panel 'Detailed Orders' do
+          table_for Order.includes(:order_items, :user, :province).order('created_at desc').limit(10) do
+            column('Order ID') { |order| link_to order.id, admin_order_path(order) }
+            column('Customer') do |order|
+              order.user ? link_to(order.user.email, admin_user_path(order.user)) : 'No Customer'
+            end
+            column('Order Date') { |order| order.created_at }
+            column('Status') { |order| status_tag(order.status) }
+            column('Total Price') { |order| number_to_currency(order.total_price) }
+            column('Products') do |order|
+              order.order_items.map { |item| item.product.name }.join(', ')
+            end
+            column('Taxes') do |order|
+              if order.subtotal.present? && order.province.present?
+                province = order.province
+                gst = order.subtotal * province.gst_rate
+                pst = order.subtotal * province.pst_rate
+                hst = order.subtotal * province.hst_rate
+                qst = order.subtotal * province.qst_rate
+                ul do
+                  li "GST: #{number_to_currency(gst)}"
+                  li "PST: #{number_to_currency(pst)}"
+                  li "HST: #{number_to_currency(hst)}"
+                  li "QST: #{number_to_currency(qst)}"
+                end
+              else
+                'N/A'
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+
+
+### app/admin/pages.rb ###
+ActiveAdmin.register Page do
+  permit_params :title, :content, :slug
+
+  filter :title
+  filter :slug
+  filter :content
+  filter :created_at
+
+  index do
+    selectable_column
+    id_column
+    column :title
+    column :slug
+    column :content
+    column :created_at
+    actions
+  end
+
+  form do |f|
+    f.inputs do
+      f.input :title
+      f.input :slug
+      f.input :content, as: :text
+    end
+    f.actions
+  end
+
+  show do
+    attributes_table do
+      row :title
+      row :slug
+      row :content do |page|
+        raw page.content
+      end
+      row :created_at
+    end
+    active_admin_comments
+  end
+end
+
+
+
+### app/admin/admin_users.rb ###
+ActiveAdmin.register AdminUser do
+  permit_params :email, :password, :password_confirmation
+
+  index do
+    selectable_column
+    id_column
+    column :email
+    column :current_sign_in_at
+    column :sign_in_count
+    column :created_at
+    actions
+  end
+
+  filter :email
+  filter :current_sign_in_at
+  filter :sign_in_count
+  filter :created_at
+
+  form do |f|
+    f.inputs do
+      f.input :email
+      f.input :password
+      f.input :password_confirmation
+    end
+    f.actions
+  end
+end
+
+
+
+### app/channels/application_cable/channel.rb ###
+module ApplicationCable
+  class Channel < ActionCable::Channel::Base
+  end
+end
+
+
+
+### app/channels/application_cable/connection.rb ###
+module ApplicationCable
+  class Connection < ActionCable::Connection::Base
+  end
+end
+
+
+
+### app/jobs/application_job.rb ###
+class ApplicationJob < ActiveJob::Base
+  # Automatically retry jobs that encountered a deadlock
+  # retry_on ActiveRecord::Deadlocked
+
+  # Most jobs are safe to ignore if the underlying records are no longer available
+  # discard_on ActiveJob::DeserializationError
+end
+
+
+
+### config/credentials.yml.enc ###
+hk0ksi7O3wHIQHswCAnDH/CfgULh6VKMCJlW6evg+u2A6J4GRIQEv+W7r4iHHrwm+qL4/7cGScan0kYZbcZoa0MRPFBfZKnLuqmd6XWSqL7p/0GDUUnr4hwJ9Run8K63NkNuJ7QkJDNY9thu9yH0vg5pLveXDUPiN9gc0s09cv1XnARYLkWTHQyb1j4fTLYGdaX9q+6fmMMn2Mxq3iCRNpZc+/rJ6b7XkowsU9Gr78Wk6uF67KHtlZRUeqexYRKOaNxoCbHijhMq/EcFE0ZbOessH/N4YQaQk3aW5hFQHV/8bpbfwq/XzrvlEWpk8m0au92UYNlyr8WxIxOhc0EIqNI3hvSZpKtbW/l0wT8xUbarubkbt2cL2LneYcWWXX3GC7JfGIAdmorfwzjvg7CmfqVKuVV1--HbkfCX+NBx8ap55L--ZIsLoJtq5tl3rrQZYAKlUA==
+
+
+### config/cable.yml ###
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  adapter: redis
+  url: <%= ENV.fetch("REDIS_URL") { "redis://localhost:6379/1" } %>
+  channel_prefix: readit_online_bookstore_production
+
+
+
+### config/application.rb ###
+require 'dotenv-rails'
+
+require_relative 'boot'
+
+require 'rails/all'
+
+Bundler.require(*Rails.groups)
+
+module ReaditOnlineBookstore
+  class Application < Rails::Application
+    config.load_defaults 7.1
+    config.autoload_lib(ignore: %w[assets tasks])
+    config.stripe.secret_key = ENV['STRIPE_SECRET_KEY']
+  end
+end
+
+
+
+### config/environments/test.rb ###
+require "active_support/core_ext/integer/time"
+
+# The test environment is used exclusively to run your application's
+# test suite. You never need to work with it otherwise. Remember that
+# your test database is "scratch space" for the test suite and is wiped
+# and recreated between test runs. Don't rely on the data there!
+
+Rails.application.configure do
+  # Settings specified here will take precedence over those in config/application.rb.
+
+  # While tests run files are not watched, reloading is not necessary.
+  config.enable_reloading = false
+
+  # Eager loading loads your entire application. When running a single test locally,
+  # this is usually not necessary, and can slow down your test suite. However, it's
+  # recommended that you enable it in continuous integration systems to ensure eager
+  # loading is working properly before deploying your code.
+  config.eager_load = ENV["CI"].present?
+
+  # Configure public file server for tests with Cache-Control for performance.
+  config.public_file_server.enabled = true
+  config.public_file_server.headers = {
+    "Cache-Control" => "public, max-age=#{1.hour.to_i}"
+  }
+
+  # Show full error reports and disable caching.
+  config.consider_all_requests_local = true
+  config.action_controller.perform_caching = false
+  config.cache_store = :null_store
+
+  # Render exception templates for rescuable exceptions and raise for other exceptions.
+  config.action_dispatch.show_exceptions = :rescuable
+
+  # Disable request forgery protection in test environment.
+  config.action_controller.allow_forgery_protection = false
+
+  # Store uploaded files on the local file system in a temporary directory.
+  config.active_storage.service = :test
+
+  config.action_mailer.perform_caching = false
+
+  # Tell Action Mailer not to deliver emails to the real world.
+  # The :test delivery method accumulates sent emails in the
+  # ActionMailer::Base.deliveries array.
+  config.action_mailer.delivery_method = :test
+
+  # Print deprecation notices to the stderr.
+  config.active_support.deprecation = :stderr
+
+  # Raise exceptions for disallowed deprecations.
+  config.active_support.disallowed_deprecation = :raise
+
+  # Tell Active Support which deprecation messages to disallow.
+  config.active_support.disallowed_deprecation_warnings = []
+
+  # Raises error for missing translations.
+  # config.i18n.raise_on_missing_translations = true
+
+  # Annotate rendered view with file names.
+  # config.action_view.annotate_rendered_view_with_filenames = true
+
+  # Raise error when a before_action's only/except options reference missing actions
+  config.action_controller.raise_on_missing_callback_actions = true
+end
+
+
+
+### config/environments/production.rb ###
+require 'active_support/core_ext/integer/time'
+
+Rails.application.configure do
+  # Settings specified here will take precedence over those in config/application.rb.
+
+  # Code is not reloaded between requests.
+  config.enable_reloading = false
+
+  # Eager load code on boot. This eager loads most of Rails and
+  # your application in memory, allowing both threaded web servers
+  # and those relying on copy on write to perform better.
+  # Rake tasks automatically ignore this option for performance.
+  config.eager_load = true
+
+  # stripe keys
+  # config.stripe.publishable_key = ENV['pk_test_51PbPCUDsjvLUGLG3J68smAXwkmPS3PXd4QUF755W2uqTsa4hNmR7mnWsXRBKTdK2zI769yBsvLVL6VHUMknWA6IY00X86HsZxM']
+  # config.stripe.secret_key = ENV['sk_test_51PbPCUDsjvLUGLG3Wd6GNXAvSXSl9TUJ8mWCIGhwR7LtaQkS8kBkUPpdtHhjRLIqiI9eonYXWNJpl2e6HdCD9gov00B5V7MZn3']
+
+  # Full error reports are disabled and caching is turned on.
+  config.consider_all_requests_local = false
+  config.action_controller.perform_caching = true
+
+  # Ensures that a master key has been made available in ENV["RAILS_MASTER_KEY"], config/master.key, or an environment
+  # key such as config/credentials/production.key. This key is used to decrypt credentials (and other encrypted files).
+  # config.require_master_key = true
+
+  # Disable serving static files from `public/`, relying on NGINX/Apache to do so instead.
+  # config.public_file_server.enabled = false
+
+  # Compress CSS using a preprocessor.
+  # config.assets.css_compressor = :sass
+
+  # Do not fall back to assets pipeline if a precompiled asset is missed.
+  config.assets.compile = false
+
+  # Enable serving of images, stylesheets, and JavaScripts from an asset server.
+  # config.asset_host = "http://assets.example.com"
+
+  # Specifies the header that your server uses for sending files.
+  # config.action_dispatch.x_sendfile_header = "X-Sendfile" # for Apache
+  # config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # for NGINX
+
+  # Store uploaded files on the local file system (see config/storage.yml for options).
+  config.active_storage.service = :local
+
+  # Mount Action Cable outside main process or domain.
+  # config.action_cable.mount_path = nil
+  # config.action_cable.url = "wss://example.com/cable"
+  # config.action_cable.allowed_request_origins = [ "http://example.com", /http:\/\/example.*/ ]
+
+  # Assume all access to the app is happening through a SSL-terminating reverse proxy.
+  # Can be used together with config.force_ssl for Strict-Transport-Security and secure cookies.
+  # config.assume_ssl = true
+
+  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
+  config.force_ssl = true
+
+  # Log to STDOUT by default
+  config.logger = ActiveSupport::Logger.new(STDOUT)
+                                       .tap  { |logger| logger.formatter = ::Logger::Formatter.new }
+                                       .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
+
+  # Prepend all log lines with the following tags.
+  config.log_tags = [:request_id]
+
+  # "info" includes generic and useful information about system operation, but avoids logging too much
+  # information to avoid inadvertent exposure of personally identifiable information (PII). If you
+  # want to log everything, set the level to "debug".
+  config.log_level = ENV.fetch('RAILS_LOG_LEVEL', 'info')
+
+  # Use a different cache store in production.
+  # config.cache_store = :mem_cache_store
+
+  # Use a real queuing backend for Active Job (and separate queues per environment).
+  # config.active_job.queue_adapter = :resque
+  # config.active_job.queue_name_prefix = "readit_online_bookstore_production"
+
+  config.action_mailer.perform_caching = false
+
+  # Ignore bad email addresses and do not raise email delivery errors.
+  # Set this to true and configure the email server for immediate delivery to raise delivery errors.
+  # config.action_mailer.raise_delivery_errors = false
+
+  # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
+  # the I18n.default_locale when a translation cannot be found).
+  config.i18n.fallbacks = true
+
+  # Don't log any deprecations.
+  config.active_support.report_deprecations = false
+
+  # Do not dump schema after migrations.
+  config.active_record.dump_schema_after_migration = false
+
+  # Enable DNS rebinding protection and other `Host` header attacks.
+  # config.hosts = [
+  #   "example.com",     # Allow requests from example.com
+  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
+  # ]
+  # Skip DNS rebinding protection for the default health check endpoint.
+  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+end
+
+
+
+### config/environments/development.rb ###
+require 'active_support/core_ext/integer/time'
+require 'dotenv-rails' # Ensure dotenv-rails is required
+
+Rails.application.configure do
+  # Settings specified here will take precedence over those in config/application.rb.
+
+  # In the development environment your application's code is reloaded any time
+  # it changes. This slows down response time but is perfect for development
+  # since you don't have to restart the web server when you make code changes.
+  config.enable_reloading = true
+
+  # Do not eager load code on boot.
+  config.eager_load = false
+
+  config.action_mailer.default_url_options = { host: 'localhost', port: 3000 }
+
+  # Show full error reports.
+  config.consider_all_requests_local = true
+
+  # Enable server timing
+  config.server_timing = true
+
+  # Enable/disable caching. By default caching is disabled.
+  # Run rails dev:cache to toggle caching.
+  if Rails.root.join('tmp/caching-dev.txt').exist?
+    config.action_controller.perform_caching = true
+    config.action_controller.enable_fragment_cache_logging = true
+
+    config.cache_store = :memory_store
+    config.public_file_server.headers = {
+      'Cache-Control' => "public, max-age=#{2.days.to_i}"
+    }
+  else
+    config.action_controller.perform_caching = false
+
+    config.cache_store = :null_store
+  end
+
+  # Stripe keys
+  config.stripe.publishable_key = 'pk_test_51PbPCUDsjvLUGLG3J68smAXwkmPS3PXd4QUF755W2uqTsa4hNmR7mnWsXRBKTdK2zI769yBsvLVL6VHUMknWA6IY00X86HsZxM'
+  config.stripe.secret_key = 'sk_test_51PbPCUDsjvLUGLG3Wd6GNXAvSXSl9TUJ8mWCIGhwR7LtaQkS8kBkUPpdtHhjRLIqiI9eonYXWNJpl2e6HdCD9gov00B5V7MZn3'
+
+  # Store uploaded files on the local file system (see config/storage.yml for options).
+  config.active_storage.service = :local
+
+  # Don't care if the mailer can't send.
+  config.action_mailer.raise_delivery_errors = false
+
+  config.action_mailer.perform_caching = false
+
+  # Print deprecation notices to the Rails logger.
+  config.active_support.deprecation = :log
+
+  # Raise exceptions for disallowed deprecations.
+  config.active_support.disallowed_deprecation = :raise
+
+  # Tell Active Support which deprecation messages to disallow.
+  config.active_support.disallowed_deprecation_warnings = []
+
+  # Raise an error on page load if there are pending migrations.
+  config.active_record.migration_error = :page_load
+
+  # Highlight code that triggered database queries in logs.
+  config.active_record.verbose_query_logs = true
+
+  # Highlight code that enqueued background job in logs.
+  config.active_job.verbose_enqueue_logs = true
+
+  # Suppress logger output for asset requests.
+  config.assets.quiet = true
+
+  # Raises error for missing translations.
+  # config.i18n.raise_on_missing_translations = true
+
+  # Annotate rendered view with file names.
+  # config.action_view.annotate_rendered_view_with_filenames = true
+
+  # Uncomment if you wish to allow Action Cable access from any origin.
+  # config.action_cable.disable_request_forgery_protection = true
+
+  # Raise error when a before_action's only/except options reference missing actions
+  config.action_controller.raise_on_missing_callback_actions = true
+end
+
+
+
+### config/initializers/active_admin.rb ###
+ActiveAdmin.setup do |config|
+  config.default_per_page = 1000
+  # == Site Title
+  #
+  # Set the title that is displayed on the main layout
+  # for each of the active admin pages.
+  #
+  config.site_title = 'Readit Online Bookstore'
+
+  # Set the link url for the title. For example, to take
+  # users to your main site. Defaults to no link.
+  #
+  # config.site_title_link = "/"
+  #
+  ## config/initializers/active_admin.rb
+
+  ## config.register_javascript 'ckeditor/init.js'
+
+  # Set an optional image to be displayed for the header
+  # instead of a string (overrides :site_title)
+  #
+  # Note: Aim for an image that's 21px high so it fits in the header.
+  #
+  # config.site_title_image = "logo.png"
+
+  # == Load Paths
+  #
+  # By default Active Admin files go inside app/admin/.
+  # You can change this directory.
+  #
+  # eg:
+  #   config.load_paths = [File.join(Rails.root, 'app', 'ui')]
+  #
+  # Or, you can also load more directories.
+  # Useful when setting namespaces with users that are not your main AdminUser entity.
+  #
+  # eg:
+  #   config.load_paths = [
+  #     File.join(Rails.root, 'app', 'admin'),
+  #     File.join(Rails.root, 'app', 'cashier')
+  #   ]
+
+  # == Default Namespace
+  #
+  # Set the default namespace each administration resource
+  # will be added to.
+  #
+  # eg:
+  #   config.default_namespace = :hello_world
+  #
+  # This will create resources in the HelloWorld module and
+  # will namespace routes to /hello_world/*
+  #
+  # To set no namespace by default, use:
+  #   config.default_namespace = false
+  #
+  # Default:
+  # config.default_namespace = :admin
+  #
+  # You can customize the settings for each namespace by using
+  # a namespace block. For example, to change the site title
+  # within a namespace:
+  #
+  #   config.namespace :admin do |admin|
+  #     admin.site_title = "Custom Admin Title"
+  #   end
+  #
+  # This will ONLY change the title for the admin section. Other
+  # namespaces will continue to use the main "site_title" configuration.
+
+  # == User Authentication
+  #
+  # Active Admin will automatically call an authentication
+  # method in a before filter of all controller actions to
+  # ensure that there is a currently logged in admin user.
+  #
+  # This setting changes the method which Active Admin calls
+  # within the application controller.
+  config.authentication_method = :authenticate_admin_user!
+
+  # == User Authorization
+  #
+  # Active Admin will automatically call an authorization
+  # method in a before filter of all controller actions to
+  # ensure that there is a user with proper rights. You can use
+  # CanCanAdapter or make your own. Please refer to documentation.
+  # config.authorization_adapter = ActiveAdmin::CanCanAdapter
+
+  # In case you prefer Pundit over other solutions you can here pass
+  # the name of default policy class. This policy will be used in every
+  # case when Pundit is unable to find suitable policy.
+  # config.pundit_default_policy = "MyDefaultPunditPolicy"
+
+  # If you wish to maintain a separate set of Pundit policies for admin
+  # resources, you may set a namespace here that Pundit will search
+  # within when looking for a resource's policy.
+  # config.pundit_policy_namespace = :admin
+
+  # You can customize your CanCan Ability class name here.
+  # config.cancan_ability_class = "Ability"
+
+  # You can specify a method to be called on unauthorized access.
+  # This is necessary in order to prevent a redirect loop which happens
+  # because, by default, user gets redirected to Dashboard. If user
+  # doesn't have access to Dashboard, he'll end up in a redirect loop.
+  # Method provided here should be defined in application_controller.rb.
+  # config.on_unauthorized_access = :access_denied
+
+  # == Current User
+  #
+  # Active Admin will associate actions with the current
+  # user performing them.
+  #
+  # This setting changes the method which Active Admin calls
+  # (within the application controller) to return the currently logged in user.
+  config.current_user_method = :current_admin_user
+
+  # == Logging Out
+  #
+  # Active Admin displays a logout link on each screen. These
+  # settings configure the location and method used for the link.
+  #
+  # This setting changes the path where the link points to. If it's
+  # a string, the strings is used as the path. If it's a Symbol, we
+  # will call the method to return the path.
+  #
+  # Default:
+  config.logout_link_path = :destroy_admin_user_session_path
+
+  # This setting changes the http method used when rendering the
+  # link. For example :get, :delete, :put, etc..
+  #
+  # Default:
+  # config.logout_link_method = :get
+
+  # == Root
+  #
+  # Set the action to call for the root path. You can set different
+  # roots for each namespace.
+  #
+  # Default:
+  # config.root_to = 'dashboard#index'
+
+  # == Admin Comments
+  #
+  # This allows your users to comment on any resource registered with Active Admin.
+  #
+  # You can completely disable comments:
+  # config.comments = false
+  #
+  # You can change the name under which comments are registered:
+  # config.comments_registration_name = 'AdminComment'
+  #
+  # You can change the order for the comments and you can change the column
+  # to be used for ordering:
+  # config.comments_order = 'created_at ASC'
+  #
+  # You can disable the menu item for the comments index page:
+  # config.comments_menu = false
+  #
+  # You can customize the comment menu:
+  # config.comments_menu = { parent: 'Admin', priority: 1 }
+
+  # == Batch Actions
+  #
+  # Enable and disable Batch Actions
+  #
+  config.batch_actions = true
+
+  # == Controller Filters
+  #
+  # You can add before, after and around filters to all of your
+  # Active Admin resources and pages from here.
+  #
+  # config.before_action :do_something_awesome
+
+  # == Attribute Filters
+  #
+  # You can exclude possibly sensitive model attributes from being displayed,
+  # added to forms, or exported by default by ActiveAdmin
+  #
+  config.filter_attributes = %i[encrypted_password password password_confirmation]
+
+  # == Localize Date/Time Format
+  #
+  # Set the localize format to display dates and times.
+  # To understand how to localize your app with I18n, read more at
+  # https://guides.rubyonrails.org/i18n.html
+  #
+  # You can run `bin/rails runner 'puts I18n.t("date.formats")'` to see the
+  # available formats in your application.
+  #
+  config.localize_format = :long
+
+  # == Setting a Favicon
+  #
+  # config.favicon = 'favicon.ico'
+
+  # == Meta Tags
+  #
+  # Add additional meta tags to the head element of active admin pages.
+  #
+  # Add tags to all pages logged in users see:
+  #   config.meta_tags = { author: 'My Company' }
+
+  # By default, sign up/sign in/recover password pages are excluded
+  # from showing up in search engine results by adding a robots meta
+  # tag. You can reset the hash of meta tags included in logged out
+  # pages:
+  #   config.meta_tags_for_logged_out_pages = {}
+
+  # == Removing Breadcrumbs
+  #
+  # Breadcrumbs are enabled by default. You can customize them for individual
+  # resources or you can disable them globally from here.
+  #
+  # config.breadcrumb = false
+
+  # == Create Another Checkbox
+  #
+  # Create another checkbox is disabled by default. You can customize it for individual
+  # resources or you can enable them globally from here.
+  #
+  # config.create_another = true
+
+  # == Register Stylesheets & Javascripts
+  #
+  # We recommend using the built in Active Admin layout and loading
+  # up your own stylesheets / javascripts to customize the look
+  # and feel.
+  #
+  # To load a stylesheet:
+  #   config.register_stylesheet 'my_stylesheet.css'
+  #
+  # You can provide an options hash for more control, which is passed along to stylesheet_link_tag():
+  #   config.register_stylesheet 'my_print_stylesheet.css', media: :print
+  #
+  # To load a javascript file:
+  #   config.register_javascript 'my_javascript.js'
+
+  # == CSV options
+  #
+  # Set the CSV builder separator
+  # config.csv_options = { col_sep: ';' }
+  #
+  # Force the use of quotes
+  # config.csv_options = { force_quotes: true }
+
+  # == Menu System
+  #
+  # You can add a navigation menu to be used in your application, or configure a provided menu
+  #
+  # To change the default utility navigation to show a link to your website & a logout btn
+  #
+  #   config.namespace :admin do |admin|
+  #     admin.build_menu :utility_navigation do |menu|
+  #       menu.add label: "My Great Website", url: "http://www.mygreatwebsite.com", html_options: { target: :blank }
+  #       admin.add_logout_button_to_menu menu
+  #     end
+  #   end
+  #
+  # If you wanted to add a static menu item to the default menu provided:
+  #
+  #   config.namespace :admin do |admin|
+  #     admin.build_menu :default do |menu|
+  #       menu.add label: "My Great Website", url: "http://www.mygreatwebsite.com", html_options: { target: "_blank" }
+  #     end
+  #   end
+
+  # == Download Links
+  #
+  # You can disable download links on resource listing pages,
+  # or customize the formats shown per namespace/globally
+  #
+  # To disable/customize for the :admin namespace:
+  #
+  #   config.namespace :admin do |admin|
+  #
+  #     # Disable the links entirely
+  #     admin.download_links = false
+  #
+  #     # Only show XML & PDF options
+  #     admin.download_links = [:xml, :pdf]
+  #
+  #     # Enable/disable the links based on block
+  #     #   (for example, with cancan)
+  #     admin.download_links = proc { can?(:view_download_links) }
+  #
+  #   end
+
+  # == Pagination
+  #
+  # Pagination is enabled by default for all resources.
+  # You can control the default per page count for all resources here.
+  #
+  # config.default_per_page = 30
+  #
+  # You can control the max per page count too.
+  #
+  # config.max_per_page = 10_000
+
+  # == Filters
+  #
+  # By default the index screen includes a "Filters" sidebar on the right
+  # hand side with a filter for each attribute of the registered model.
+  # You can enable or disable them for all resources here.
+  #
+  # config.filters = true
+  #
+  # By default the filters include associations in a select, which means
+  # that every record will be loaded for each association (up
+  # to the value of config.maximum_association_filter_arity).
+  # You can enabled or disable the inclusion
+  # of those filters by default here.
+  #
+  # config.include_default_association_filters = true
+
+  # config.maximum_association_filter_arity = 256 # default value of :unlimited will change to 256 in a future version
+  # config.filter_columns_for_large_association = [
+  #    :display_name,
+  #    :full_name,
+  #    :name,
+  #    :username,
+  #    :login,
+  #    :title,
+  #    :email,
+  #  ]
+  # config.filter_method_for_large_association = '_start'
+
+  # == Head
+  #
+  # You can add your own content to the site head like analytics. Make sure
+  # you only pass content you trust.
+  #
+  # config.head = ''.html_safe
+
+  # == Footer
+  #
+  # By default, the footer shows the current Active Admin version. You can
+  # override the content of the footer here.
+  #
+  # config.footer = 'my custom footer text'
+
+  # == Sorting
+  #
+  # By default ActiveAdmin::OrderClause is used for sorting logic
+  # You can inherit it with own class and inject it for all resources
+  #
+  # config.order_clause = MyOrderClause
+
+  # == Webpacker
+  #
+  # By default, Active Admin uses Sprocket's asset pipeline.
+  # You can switch to using Webpacker here.
+  #
+  # config.use_webpacker = true
+end
+
+
+
+### config/initializers/devise.rb ###
+# frozen_string_literal: true
+
+# Assuming you have not yet modified this file, each configuration option below
+# is set to its default value. Note that some are commented out while others
+# are not: uncommented lines are intended to protect your configuration from
+# breaking changes in upgrades (i.e., in the event that future versions of
+# Devise change the default values for those options).
+#
+# Use this hook to configure devise mailer, warden hooks and so forth.
+# Many of these configuration options can be set straight in your model.
+Devise.setup do |config|
+  # The secret key used by Devise. Devise uses this key to generate
+  # random tokens. Changing this key will render invalid all existing
+  # confirmation, reset password and unlock tokens in the database.
+  # Devise will use the `secret_key_base` as its `secret_key`
+  # by default. You can change it below and use your own secret key.
+  # config.secret_key = 'd8caa6d4005275941c805782fba284f03a48d2059c1883dfb2a234731953c9afca90e9d81cac073673ea81ed4ae3d875ac3a1f44f98872e426e3f1bed9fdc269'
+
+  # ==> Controller configuration
+  # Configure the parent class to the devise controllers.
+  # config.parent_controller = 'DeviseController'
+
+  # ==> Mailer Configuration
+  # Configure the e-mail address which will be shown in Devise::Mailer,
+  # note that it will be overwritten if you use your own mailer class
+  # with default "from" parameter.
+  config.mailer_sender = 'please-change-me-at-config-initializers-devise@example.com'
+
+  # Configure the class responsible to send e-mails.
+  # config.mailer = 'Devise::Mailer'
+
+  # Configure the parent class responsible to send e-mails.
+  # config.parent_mailer = 'ActionMailer::Base'
+
+  # ==> ORM configuration
+  # Load and configure the ORM. Supports :active_record (default) and
+  # :mongoid (bson_ext recommended) by default. Other ORMs may be
+  # available as additional gems.
+  require 'devise/orm/active_record'
+
+  # ==> Configuration for any authentication mechanism
+  # Configure which keys are used when authenticating a user. The default is
+  # just :email. You can configure it to use [:username, :subdomain], so for
+  # authenticating a user, both parameters are required. Remember that those
+  # parameters are used only when authenticating and not when retrieving from
+  # session. If you need permissions, you should implement that in a before filter.
+  # You can also supply a hash where the value is a boolean determining whether
+  # or not authentication should be aborted when the value is not present.
+  # config.authentication_keys = [:email]
+
+  # Configure parameters from the request object used for authentication. Each entry
+  # given should be a request method and it will automatically be passed to the
+  # find_for_authentication method and considered in your model lookup. For instance,
+  # if you set :request_keys to [:subdomain], :subdomain will be used on authentication.
+  # The same considerations mentioned for authentication_keys also apply to request_keys.
+  # config.request_keys = []
+
+  # Configure which authentication keys should be case-insensitive.
+  # These keys will be downcased upon creating or modifying a user and when used
+  # to authenticate or find a user. Default is :email.
+  config.case_insensitive_keys = [:email]
+
+  # Configure which authentication keys should have whitespace stripped.
+  # These keys will have whitespace before and after removed upon creating or
+  # modifying a user and when used to authenticate or find a user. Default is :email.
+  config.strip_whitespace_keys = [:email]
+
+  # Tell if authentication through request.params is enabled. True by default.
+  # It can be set to an array that will enable params authentication only for the
+  # given strategies, for example, `config.params_authenticatable = [:database]` will
+  # enable it only for database (email + password) authentication.
+  # config.params_authenticatable = true
+
+  # Tell if authentication through HTTP Auth is enabled. False by default.
+  # It can be set to an array that will enable http authentication only for the
+  # given strategies, for example, `config.http_authenticatable = [:database]` will
+  # enable it only for database authentication.
+  # For API-only applications to support authentication "out-of-the-box", you will likely want to
+  # enable this with :database unless you are using a custom strategy.
+  # The supported strategies are:
+  # :database      = Support basic authentication with authentication key + password
+  # config.http_authenticatable = false
+
+  # If 401 status code should be returned for AJAX requests. True by default.
+  # config.http_authenticatable_on_xhr = true
+
+  # The realm used in Http Basic Authentication. 'Application' by default.
+  # config.http_authentication_realm = 'Application'
+
+  # It will change confirmation, password recovery and other workflows
+  # to behave the same regardless if the e-mail provided was right or wrong.
+  # Does not affect registerable.
+  # config.paranoid = true
+
+  # By default Devise will store the user in session. You can skip storage for
+  # particular strategies by setting this option.
+  # Notice that if you are skipping storage for all authentication paths, you
+  # may want to disable generating routes to Devise's sessions controller by
+  # passing skip: :sessions to `devise_for` in your config/routes.rb
+  config.skip_session_storage = [:http_auth]
+
+  # By default, Devise cleans up the CSRF token on authentication to
+  # avoid CSRF token fixation attacks. This means that, when using AJAX
+  # requests for sign in and sign up, you need to get a new CSRF token
+  # from the server. You can disable this option at your own risk.
+  # config.clean_up_csrf_token_on_authentication = true
+
+  # When false, Devise will not attempt to reload routes on eager load.
+  # This can reduce the time taken to boot the app but if your application
+  # requires the Devise mappings to be loaded during boot time the application
+  # won't boot properly.
+  # config.reload_routes = true
+
+  # ==> Configuration for :database_authenticatable
+  # For bcrypt, this is the cost for hashing the password and defaults to 12. If
+  # using other algorithms, it sets how many times you want the password to be hashed.
+  # The number of stretches used for generating the hashed password are stored
+  # with the hashed password. This allows you to change the stretches without
+  # invalidating existing passwords.
+  #
+  # Limiting the stretches to just one in testing will increase the performance of
+  # your test suite dramatically. However, it is STRONGLY RECOMMENDED to not use
+  # a value less than 10 in other environments. Note that, for bcrypt (the default
+  # algorithm), the cost increases exponentially with the number of stretches (e.g.
+  # a value of 20 is already extremely slow: approx. 60 seconds for 1 calculation).
+  config.stretches = Rails.env.test? ? 1 : 12
+
+  # Set up a pepper to generate the hashed password.
+  # config.pepper = '5a283d655c8146adddce310148bc7457a401d66c560b125eaac09d4316d174f492e8e15407657ec11e21e85bcd3dfa1865dc10992a774c300d472b8843a0b5e1'
+
+  # Send a notification to the original email when the user's email is changed.
+  # config.send_email_changed_notification = false
+
+  # Send a notification email when the user's password is changed.
+  # config.send_password_change_notification = false
+
+  # ==> Configuration for :confirmable
+  # A period that the user is allowed to access the website even without
+  # confirming their account. For instance, if set to 2.days, the user will be
+  # able to access the website for two days without confirming their account,
+  # access will be blocked just in the third day.
+  # You can also set it to nil, which will allow the user to access the website
+  # without confirming their account.
+  # Default is 0.days, meaning the user cannot access the website without
+  # confirming their account.
+  # config.allow_unconfirmed_access_for = 2.days
+
+  # A period that the user is allowed to confirm their account before their
+  # token becomes invalid. For example, if set to 3.days, the user can confirm
+  # their account within 3 days after the mail was sent, but on the fourth day
+  # their account can't be confirmed with the token any more.
+  # Default is nil, meaning there is no restriction on how long a user can take
+  # before confirming their account.
+  # config.confirm_within = 3.days
+
+  # If true, requires any email changes to be confirmed (exactly the same way as
+  # initial account confirmation) to be applied. Requires additional unconfirmed_email
+  # db field (see migrations). Until confirmed, new email is stored in
+  # unconfirmed_email column, and copied to email column on successful confirmation.
+  config.reconfirmable = true
+
+  # Defines which key will be used when confirming an account
+  # config.confirmation_keys = [:email]
+
+  # ==> Configuration for :rememberable
+  # The time the user will be remembered without asking for credentials again.
+  # config.remember_for = 2.weeks
+
+  # Invalidates all the remember me tokens when the user signs out.
+  config.expire_all_remember_me_on_sign_out = true
+
+  # If true, extends the user's remember period when remembered via cookie.
+  # config.extend_remember_period = false
+
+  # Options to be passed to the created cookie. For instance, you can set
+  # secure: true in order to force SSL only cookies.
+  # config.rememberable_options = {}
+
+  # ==> Configuration for :validatable
+  # Range for password length.
+  config.password_length = 6..128
+
+  # Email regex used to validate email formats. It simply asserts that
+  # one (and only one) @ exists in the given string. This is mainly
+  # to give user feedback and not to assert the e-mail validity.
+  config.email_regexp = /\A[^@\s]+@[^@\s]+\z/
+
+  # ==> Configuration for :timeoutable
+  # The time you want to timeout the user session without activity. After this
+  # time the user will be asked for credentials again. Default is 30 minutes.
+  # config.timeout_in = 30.minutes
+
+  # ==> Configuration for :lockable
+  # Defines which strategy will be used to lock an account.
+  # :failed_attempts = Locks an account after a number of failed attempts to sign in.
+  # :none            = No lock strategy. You should handle locking by yourself.
+  # config.lock_strategy = :failed_attempts
+
+  # Defines which key will be used when locking and unlocking an account
+  # config.unlock_keys = [:email]
+
+  # Defines which strategy will be used to unlock an account.
+  # :email = Sends an unlock link to the user email
+  # :time  = Re-enables login after a certain amount of time (see :unlock_in below)
+  # :both  = Enables both strategies
+  # :none  = No unlock strategy. You should handle unlocking by yourself.
+  # config.unlock_strategy = :both
+
+  # Number of authentication tries before locking an account if lock_strategy
+  # is failed attempts.
+  # config.maximum_attempts = 20
+
+  # Time interval to unlock the account if :time is enabled as unlock_strategy.
+  # config.unlock_in = 1.hour
+
+  # Warn on the last attempt before the account is locked.
+  # config.last_attempt_warning = true
+
+  # ==> Configuration for :recoverable
+  #
+  # Defines which key will be used when recovering the password for an account
+  # config.reset_password_keys = [:email]
+
+  # Time interval you can reset your password with a reset password key.
+  # Don't put a too small interval or your users won't have the time to
+  # change their passwords.
+  config.reset_password_within = 6.hours
+
+  # When set to false, does not sign a user in automatically after their password is
+  # reset. Defaults to true, so a user is signed in automatically after a reset.
+  # config.sign_in_after_reset_password = true
+
+  # ==> Configuration for :encryptable
+  # Allow you to use another hashing or encryption algorithm besides bcrypt (default).
+  # You can use :sha1, :sha512 or algorithms from others authentication tools as
+  # :clearance_sha1, :authlogic_sha512 (then you should set stretches above to 20
+  # for default behavior) and :restful_authentication_sha1 (then you should set
+  # stretches to 10, and copy REST_AUTH_SITE_KEY to pepper).
+  #
+  # Require the `devise-encryptable` gem when using anything other than bcrypt
+  # config.encryptor = :sha512
+
+  # ==> Scopes configuration
+  # Turn scoped views on. Before rendering "sessions/new", it will first check for
+  # "users/sessions/new". It's turned off by default because it's slower if you
+  # are using only default views.
+  # config.scoped_views = false
+
+  # Configure the default scope given to Warden. By default it's the first
+  # devise role declared in your routes (usually :user).
+  # config.default_scope = :user
+
+  # Set this configuration to false if you want /users/sign_out to sign out
+  # only the current scope. By default, Devise signs out all scopes.
+  # config.sign_out_all_scopes = true
+
+  # ==> Navigation configuration
+  # Lists the formats that should be treated as navigational. Formats like
+  # :html should redirect to the sign in page when the user does not have
+  # access, but formats like :xml or :json, should return 401.
+  #
+  # If you have any extra navigational formats, like :iphone or :mobile, you
+  # should add them to the navigational formats lists.
+  #
+  # The "*/*" below is required to match Internet Explorer requests.
+  # config.navigational_formats = ['*/*', :html, :turbo_stream]
+
+  # The default HTTP method used to sign out a resource. Default is :delete.
+  config.sign_out_via = :delete
+
+  # ==> OmniAuth
+  # Add a new OmniAuth provider. Check the wiki for more information on setting
+  # up on your models and hooks.
+  # config.omniauth :github, 'APP_ID', 'APP_SECRET', scope: 'user,public_repo'
+
+  # ==> Warden configuration
+  # If you want to use other strategies, that are not supported by Devise, or
+  # change the failure app, you can configure them inside the config.warden block.
+  #
+  # config.warden do |manager|
+  #   manager.intercept_401 = false
+  #   manager.default_strategies(scope: :user).unshift :some_external_strategy
+  # end
+
+  # ==> Mountable engine configurations
+  # When using Devise inside an engine, let's call it `MyEngine`, and this engine
+  # is mountable, there are some extra configurations to be taken into account.
+  # The following options are available, assuming the engine is mounted as:
+  #
+  #     mount MyEngine, at: '/my_engine'
+  #
+  # The router that invoked `devise_for`, in the example above, would be:
+  # config.router_name = :my_engine
+  #
+  # When using OmniAuth, Devise cannot automatically set OmniAuth path,
+  # so you need to do it manually. For the users scope, it would be:
+  # config.omniauth_path_prefix = '/my_engine/users/auth'
+
+  # ==> Hotwire/Turbo configuration
+  # When using Devise with Hotwire/Turbo, the http status for error responses
+  # and some redirects must match the following. The default in Devise for existing
+  # apps is `200 OK` and `302 Found` respectively, but new apps are generated with
+  # these new defaults that match Hotwire/Turbo behavior.
+  # Note: These might become the new default in future versions of Devise.
+  config.responder.error_status = :unprocessable_entity
+  config.responder.redirect_status = :see_other
+
+  # ==> Configuration for :registerable
+
+  # When set to false, does not sign a user in automatically after their password is
+  # changed. Defaults to true, so a user is signed in automatically after changing a password.
+  # config.sign_in_after_change_password = true
+end
+
+
+
+### config/initializers/filter_parameter_logging.rb ###
+# Be sure to restart your server when you modify this file.
+
+# Configure parameters to be partially matched (e.g. passw matches password) and filtered from the log file.
+# Use this to limit dissemination of sensitive information.
+# See the ActiveSupport::ParameterFilter documentation for supported notations and behaviors.
+Rails.application.config.filter_parameters += [
+  :passw, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn
+]
+
+
+
+### config/initializers/stripe.rb ###
+# config/initializers/stripe.rb
+Stripe.api_key = ENV['STRIPE_SECRET_KEY']
+
+
+
+### config/initializers/inflections.rb ###
+# Be sure to restart your server when you modify this file.
+
+# Add new inflection rules using the following format. Inflections
+# are locale specific, and you may define rules for as many different
+# locales as you wish. All of these examples are active by default:
+# ActiveSupport::Inflector.inflections(:en) do |inflect|
+#   inflect.plural /^(ox)$/i, "\\1en"
+#   inflect.singular /^(ox)en/i, "\\1"
+#   inflect.irregular "person", "people"
+#   inflect.uncountable %w( fish sheep )
+# end
+
+# These inflection rules are supported but not enabled by default:
+# ActiveSupport::Inflector.inflections(:en) do |inflect|
+#   inflect.acronym "RESTful"
+# end
+
+
+
+### config/initializers/permissions_policy.rb ###
+# Be sure to restart your server when you modify this file.
+
+# Define an application-wide HTTP permissions policy. For further
+# information see: https://developers.google.com/web/updates/2018/06/feature-policy
+
+# Rails.application.config.permissions_policy do |policy|
+#   policy.camera      :none
+#   policy.gyroscope   :none
+#   policy.microphone  :none
+#   policy.usb         :none
+#   policy.fullscreen  :self
+#   policy.payment     :self, "https://secure.example.com"
+# end
+
+
+
+### config/initializers/assets.rb ###
+# Be sure to restart your server when you modify this file.
+
+# Version of your assets, change this if you want to expire all your assets.
+Rails.application.config.assets.version = '1.0'
+
+Rails.application.config.assets.paths << Rails.root.join('node_modules')
+
+# Add additional assets to the asset load path.
+# Rails.application.config.assets.paths << Emoji.images_path
+
+# Precompile additional assets.
+# application.js, application.css, and all non-JS/CSS in the app/assets
+# folder are already added.
+# Rails.application.config.assets.precompile += %w( admin.js admin.css )
+
+
+
+### config/initializers/content_security_policy.rb ###
+# Be sure to restart your server when you modify this file.
+
+# Define an application-wide content security policy.
+# See the Securing Rails Applications Guide for more information:
+# https://guides.rubyonrails.org/security.html#content-security-policy-header
+
+# Rails.application.configure do
+#   config.content_security_policy do |policy|
+#     policy.default_src :self, :https
+#     policy.font_src    :self, :https, :data
+#     policy.img_src     :self, :https, :data
+#     policy.object_src  :none
+#     policy.script_src  :self, :https
+#     policy.style_src   :self, :https
+#     # Specify URI for violation reports
+#     # policy.report_uri "/csp-violation-report-endpoint"
+#   end
+#
+#   # Generate session nonces for permitted importmap, inline scripts, and inline styles.
+#   config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
+#   config.content_security_policy_nonce_directives = %w(script-src style-src)
+#
+#   # Report violations without enforcing the policy.
+#   # config.content_security_policy_report_only = true
+# end
+
+
+
+### config/routes.rb ###
+Rails.application.routes.draw do
+  devise_for :users
+  devise_for :admin_users, ActiveAdmin::Devise.config
+  ActiveAdmin.routes(self)
+
+  resources :shopping_cart_items, only: %i[index create update destroy]
+  resources :products, only: %i[index show]
+  resources :categories, only: %i[index show]
+  resources :pages, only: [:show]
+
+  # Ensure all RESTful routes for orders are defined
+  resources :orders, only: %i[index new create show] do
+    member do
+      patch 'update_status', to: 'orders#update_status'
+    end
+  end
+
+  resource :user, only: %i[show edit update]
+
+  # Define the root path route ("/")
+  root 'products#index'
+
+  # Define static pages routes
+  get 'contact', to: 'pages#show', defaults: { id: 'contact-us' }
+  get 'about', to: 'pages#show', defaults: { id: 'about-us' }
+
+  # Define shipping types route
+  resources :shipping_types, only: [] do
+    member do
+      get 'price'
+    end
+  end
+end
+
+
+
+### config/tailwind.config.js ###
+const defaultTheme = require('tailwindcss/defaultTheme')
+
+module.exports = {
+  content: [
+    './public/*.html',
+    './app/helpers/**/*.rb',
+    './app/javascript/**/*.js',
+    './app/views/**/*.{erb,haml,html,slim}'
+  ],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter var', ...defaultTheme.fontFamily.sans],
+      },
+    },
+  },
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+    require('@tailwindcss/container-queries'),
+  ]
+}
+
+
+
+### config/master.key ###
+c39c2640485616f486f06ebd9c8b1ebf
+
+
+### config/puma.rb ###
+# This configuration file will be evaluated by Puma. The top-level methods that
+# are invoked here are part of Puma's configuration DSL. For more information
+# about methods provided by the DSL, see https://puma.io/puma/Puma/DSL.html.
+
+# Puma can serve each request in a thread from an internal thread pool.
+# The `threads` method setting takes two numbers: a minimum and maximum.
+# Any libraries that use thread pools should be configured to match
+# the maximum value specified for Puma. Default is set to 5 threads for minimum
+# and maximum; this matches the default thread size of Active Record.
+max_threads_count = ENV.fetch("RAILS_MAX_THREADS") { 5 }
+min_threads_count = ENV.fetch("RAILS_MIN_THREADS") { max_threads_count }
+threads min_threads_count, max_threads_count
+
+# Specifies that the worker count should equal the number of processors in production.
+if ENV["RAILS_ENV"] == "production"
+  require "concurrent-ruby"
+  worker_count = Integer(ENV.fetch("WEB_CONCURRENCY") { Concurrent.physical_processor_count })
+  workers worker_count if worker_count > 1
+end
+
+# Specifies the `worker_timeout` threshold that Puma will use to wait before
+# terminating a worker in development environments.
+worker_timeout 3600 if ENV.fetch("RAILS_ENV", "development") == "development"
+
+# Specifies the `port` that Puma will listen on to receive requests; default is 3000.
+port ENV.fetch("PORT") { 3000 }
+
+# Specifies the `environment` that Puma will run in.
+environment ENV.fetch("RAILS_ENV") { "development" }
+
+# Specifies the `pidfile` that Puma will use.
+pidfile ENV.fetch("PIDFILE") { "tmp/pids/server.pid" }
+
+# Allow puma to be restarted by `bin/rails restart` command.
+plugin :tmp_restart
+
+
+
+### config/importmap.rb ###
+# Pin npm packages by running ./bin/importmap
+
+pin 'application', preload: true
+pin '@hotwired/turbo-rails', to: 'turbo.min.js', preload: true
+pin '@hotwired/stimulus', to: 'stimulus.min.js', preload: true
+pin '@hotwired/stimulus-loading', to: 'stimulus-loading.js', preload: true
+pin_all_from 'app/javascript/controllers', under: 'controllers'
+pin 'trix'
+pin '@rails/actiontext', to: 'actiontext.esm.js'
+
+
+
+### config/locales/devise.en.yml ###
+# Additional translations at https://github.com/heartcombo/devise/wiki/I18n
+
+en:
+  devise:
+    confirmations:
+      confirmed: "Your email address has been successfully confirmed."
+      send_instructions: "You will receive an email with instructions for how to confirm your email address in a few minutes."
+      send_paranoid_instructions: "If your email address exists in our database, you will receive an email with instructions for how to confirm your email address in a few minutes."
+    failure:
+      already_authenticated: "You are already signed in."
+      inactive: "Your account is not activated yet."
+      invalid: "Invalid %{authentication_keys} or password."
+      locked: "Your account is locked."
+      last_attempt: "You have one more attempt before your account is locked."
+      not_found_in_database: "Invalid %{authentication_keys} or password."
+      timeout: "Your session expired. Please sign in again to continue."
+      unauthenticated: "You need to sign in or sign up before continuing."
+      unconfirmed: "You have to confirm your email address before continuing."
+    mailer:
+      confirmation_instructions:
+        subject: "Confirmation instructions"
+      reset_password_instructions:
+        subject: "Reset password instructions"
+      unlock_instructions:
+        subject: "Unlock instructions"
+      email_changed:
+        subject: "Email Changed"
+      password_change:
+        subject: "Password Changed"
+    omniauth_callbacks:
+      failure: "Could not authenticate you from %{kind} because \"%{reason}\"."
+      success: "Successfully authenticated from %{kind} account."
+    passwords:
+      no_token: "You can't access this page without coming from a password reset email. If you do come from a password reset email, please make sure you used the full URL provided."
+      send_instructions: "You will receive an email with instructions on how to reset your password in a few minutes."
+      send_paranoid_instructions: "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes."
+      updated: "Your password has been changed successfully. You are now signed in."
+      updated_not_active: "Your password has been changed successfully."
+    registrations:
+      destroyed: "Bye! Your account has been successfully cancelled. We hope to see you again soon."
+      signed_up: "Welcome! You have signed up successfully."
+      signed_up_but_inactive: "You have signed up successfully. However, we could not sign you in because your account is not yet activated."
+      signed_up_but_locked: "You have signed up successfully. However, we could not sign you in because your account is locked."
+      signed_up_but_unconfirmed: "A message with a confirmation link has been sent to your email address. Please follow the link to activate your account."
+      update_needs_confirmation: "You updated your account successfully, but we need to verify your new email address. Please check your email and follow the confirmation link to confirm your new email address."
+      updated: "Your account has been updated successfully."
+      updated_but_not_signed_in: "Your account has been updated successfully, but since your password was changed, you need to sign in again."
+    sessions:
+      signed_in: "Signed in successfully."
+      signed_out: "Signed out successfully."
+      already_signed_out: "Signed out successfully."
+    unlocks:
+      send_instructions: "You will receive an email with instructions for how to unlock your account in a few minutes."
+      send_paranoid_instructions: "If your account exists, you will receive an email with instructions for how to unlock it in a few minutes."
+      unlocked: "Your account has been unlocked successfully. Please sign in to continue."
+  errors:
+    messages:
+      already_confirmed: "was already confirmed, please try signing in"
+      confirmation_period_expired: "needs to be confirmed within %{period}, please request a new one"
+      expired: "has expired, please request a new one"
+      not_found: "not found"
+      not_locked: "was not locked"
+      not_saved:
+        one: "1 error prohibited this %{resource} from being saved:"
+        other: "%{count} errors prohibited this %{resource} from being saved:"
+
+
+
+### config/locales/en.yml ###
+# Files in the config/locales directory are used for internationalization and
+# are automatically loaded by Rails. If you want to use locales other than
+# English, add the necessary files in this directory.
+#
+# To use the locales, use `I18n.t`:
+#
+#     I18n.t "hello"
+#
+# In views, this is aliased to just `t`:
+#
+#     <%= t("hello") %>
+#
+# To use a different locale, set it with `I18n.locale`:
+#
+#     I18n.locale = :es
+#
+# This would use the information in config/locales/es.yml.
+#
+# To learn more about the API, please read the Rails Internationalization guide
+# at https://guides.rubyonrails.org/i18n.html.
+#
+# Be aware that YAML interprets the following case-insensitive strings as
+# booleans: `true`, `false`, `on`, `off`, `yes`, `no`. Therefore, these strings
+# must be quoted to be interpreted as strings. For example:
+#
+#     en:
+#       "yes": yup
+#       enabled: "ON"
+
+en:
+  hello: "Hello world"
+
+
+
+### config/boot.rb ###
+ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
+
+require "bundler/setup" # Set up gems listed in the Gemfile.
+require "bootsnap/setup" # Speed up boot time by caching expensive operations.
+
+
+
+### config/environment.rb ###
+# Load the Rails application.
+require_relative "application"
+
+# Initialize the Rails application.
+Rails.application.initialize!
+
+
+
+### config/database.yml ###
+# SQLite. Versions 3.8.0 and up are supported.
+#   gem install sqlite3
+#
+#   Ensure the SQLite 3 gem is defined in your Gemfile
+#   gem "sqlite3"
+#
+default: &default
+  adapter: sqlite3
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  timeout: 5000
+
+development:
+  <<: *default
+  database: storage/development.sqlite3
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: storage/test.sqlite3
+
+production:
+  <<: *default
+  database: storage/production.sqlite3
+
+
+
+### config/storage.yml ###
+test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage") %>
+
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
+
+# Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
+# amazon:
+#   service: S3
+#   access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
+#   secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
+#   region: us-east-1
+#   bucket: your_own_bucket-<%= Rails.env %>
+
+# Remember not to checkin your GCS keyfile to a repository
+# google:
+#   service: GCS
+#   project: your_project
+#   credentials: <%= Rails.root.join("path/to/gcs.keyfile") %>
+#   bucket: your_own_bucket-<%= Rails.env %>
+
+# Use bin/rails credentials:edit to set the Azure Storage secret (as azure_storage:storage_access_key)
+# microsoft:
+#   service: AzureStorage
+#   storage_account_name: your_account_name
+#   storage_access_key: <%= Rails.application.credentials.dig(:azure_storage, :storage_access_key) %>
+#   container: your_container_name-<%= Rails.env %>
+
+# mirror:
+#   service: Mirror
+#   primary: local
+#   mirrors: [ amazon, google, microsoft ]
+
+
+
+### db/migrate/20240721062847_create_product_reviews.rb ###
+class CreateProductReviews < ActiveRecord::Migration[7.1]
+  def change
+    create_table :product_reviews do |t|
+      t.references :product, null: false, foreign_key: true
+      t.text :review
+      t.integer :rating
+      t.datetime :review_date
+      t.string :reviewer_name
+      t.references :user, null: false, foreign_key: true
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240725233533_add_total_price_to_orders.rb ###
+class AddTotalPriceToOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :orders, :total_price, :decimal
+  end
+end
+
+
+
+### db/migrate/20240721062056_devise_create_admin_users.rb ###
+class DeviseCreateAdminUsers < ActiveRecord::Migration[6.0]
+  def change
+    create_table :admin_users do |t|
+      t.string :email,              null: false, default: ''
+      t.string :encrypted_password, null: false, default: ''
+      t.string :reset_password_token
+      t.datetime :reset_password_sent_at
+      t.datetime :remember_created_at
+      t.timestamps null: false
+    end
+    add_index :admin_users, :email,                unique: true
+    add_index :admin_users, :reset_password_token, unique: true
+  end
+end
+
+
+
+### db/migrate/20240725215029_make_user_id_optional_in_orders.rb ###
+class MakeUserIdOptionalInOrders < ActiveRecord::Migration[6.1]
+  def change
+    change_column_null :orders, :user_id, true
+  end
+end
+
+
+
+### db/migrate/20240721062822_create_products.rb ###
+class CreateProducts < ActiveRecord::Migration[7.0]
+  def change
+    create_table :products do |t|
+      t.string :name, null: false
+      t.string :author, null: false
+      t.text :description, null: false
+      t.decimal :price, null: false, precision: 10, scale: 2
+      t.integer :number_in_stock, null: false
+      t.references :category, null: false, foreign_key: true
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240724220930_add_user_id_to_shopping_cart_items.rb ###
+class AddUserIdToShoppingCartItems < ActiveRecord::Migration[6.0]
+  def change
+    add_column :shopping_cart_items, :user_id, :integer
+    add_foreign_key :shopping_cart_items, :users
+  end
+end
+
+
+
+### db/migrate/20240722190739_add_foreign_key_constraints.rb ###
+class AddForeignKeyConstraints < ActiveRecord::Migration[6.1]
+  def change
+    remove_foreign_key :order_items, :orders if foreign_key_exists?(:order_items, :orders)
+    remove_foreign_key :order_items, :products if foreign_key_exists?(:order_items, :products)
+    remove_foreign_key :shopping_cart_items, :users if foreign_key_exists?(:shopping_cart_items, :users)
+    remove_foreign_key :shopping_cart_items, :products if foreign_key_exists?(:shopping_cart_items, :products)
+    remove_foreign_key :product_reviews, :users if foreign_key_exists?(:product_reviews, :users)
+    remove_foreign_key :product_reviews, :products if foreign_key_exists?(:product_reviews, :products)
+    remove_foreign_key :orders, :users if foreign_key_exists?(:orders, :users)
+
+    add_foreign_key :order_items, :orders, on_delete: :cascade
+    add_foreign_key :order_items, :products, on_delete: :cascade
+    add_foreign_key :shopping_cart_items, :users, on_delete: :cascade
+    add_foreign_key :shopping_cart_items, :products, on_delete: :cascade
+    add_foreign_key :product_reviews, :users, on_delete: :cascade
+    add_foreign_key :product_reviews, :products, on_delete: :cascade
+    add_foreign_key :orders, :users, on_delete: :cascade
+  end
+end
+
+
+
+### db/migrate/20240721062022_create_active_storage_tables.active_storage.rb ###
+# This migration comes from active_storage (originally 20170806125915)
+class CreateActiveStorageTables < ActiveRecord::Migration[7.0]
+  def change
+    # Use Active Record's configured type for primary and foreign keys
+    primary_key_type, foreign_key_type = primary_and_foreign_key_types
+
+    create_table :active_storage_blobs, id: primary_key_type do |t|
+      t.string   :key,          null: false
+      t.string   :filename,     null: false
+      t.string   :content_type
+      t.text     :metadata
+      t.string   :service_name, null: false
+      t.bigint   :byte_size,    null: false
+      t.string   :checksum
+
+      if connection.supports_datetime_with_precision?
+        t.datetime :created_at, precision: 6, null: false
+      else
+        t.datetime :created_at, null: false
+      end
+
+      t.index [ :key ], unique: true
+    end
+
+    create_table :active_storage_attachments, id: primary_key_type do |t|
+      t.string     :name,     null: false
+      t.references :record,   null: false, polymorphic: true, index: false, type: foreign_key_type
+      t.references :blob,     null: false, type: foreign_key_type
+
+      if connection.supports_datetime_with_precision?
+        t.datetime :created_at, precision: 6, null: false
+      else
+        t.datetime :created_at, null: false
+      end
+
+      t.index [ :record_type, :record_id, :name, :blob_id ], name: :index_active_storage_attachments_uniqueness, unique: true
+      t.foreign_key :active_storage_blobs, column: :blob_id
+    end
+
+    create_table :active_storage_variant_records, id: primary_key_type do |t|
+      t.belongs_to :blob, null: false, index: false, type: foreign_key_type
+      t.string :variation_digest, null: false
+
+      t.index [ :blob_id, :variation_digest ], name: :index_active_storage_variant_records_uniqueness, unique: true
+      t.foreign_key :active_storage_blobs, column: :blob_id
+    end
+  end
+
+  private
+    def primary_and_foreign_key_types
+      config = Rails.configuration.generators
+      setting = config.options[config.orm][:primary_key_type]
+      primary_key_type = setting || :primary_key
+      foreign_key_type = setting || :bigint
+      [primary_key_type, foreign_key_type]
+    end
+end
+
+
+
+### db/migrate/20240723065905_add_username_to_users.rb ###
+class AddUsernameToUsers < ActiveRecord::Migration[7.1]
+  def change
+    add_column :users, :username, :string
+    add_index :users, :username, unique: true
+  end
+end
+
+
+
+### db/migrate/20240721071118_create_pages.rb ###
+class CreatePages < ActiveRecord::Migration[7.1]
+  def change
+    create_table :pages do |t|
+      t.string :title
+      t.text :content
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240725231204_add_pricing_details_to_orders.rb ###
+class AddPricingDetailsToOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :orders, :subtotal, :decimal
+    add_column :orders, :gst, :decimal
+    add_column :orders, :pst, :decimal
+    add_column :orders, :hst, :decimal
+    add_column :orders, :qst, :decimal
+  end
+end
+
+
+
+### db/migrate/20240721062837_create_orders.rb ###
+class CreateOrders < ActiveRecord::Migration[7.1]
+  def change
+    create_table :orders do |t|
+      t.references :user, null: false, foreign_key: true
+      t.string :receiver_name
+      t.string :address
+      t.string :city
+      t.integer :zip
+      t.references :province, null: false, foreign_key: true
+      t.references :shipping_type, null: false, foreign_key: true
+      t.datetime :purchase_date
+      t.string :status
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240721062832_create_shopping_cart_items.rb ###
+class CreateShoppingCartItems < ActiveRecord::Migration[7.1]
+  def change
+    create_table :shopping_cart_items do |t|
+      t.references :product, null: false, foreign_key: true
+      t.decimal :price
+      t.datetime :date_added
+      t.references :user, null: false, foreign_key: true
+      t.integer :quantity
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240721062852_create_order_items.rb ###
+class CreateOrderItems < ActiveRecord::Migration[7.1]
+  def change
+    create_table :order_items do |t|
+      t.references :user, null: false, foreign_key: true
+      t.references :product, null: false, foreign_key: true
+      t.datetime :purchase_date
+      t.references :order, null: false, foreign_key: true
+      t.integer :quantity
+      t.decimal :price
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240721062827_create_provinces.rb ###
+class CreateProvinces < ActiveRecord::Migration[7.0]
+  def change
+    create_table :provinces, id: false do |t|
+      t.string :id, primary_key: true
+      t.string :name, null: false
+      t.decimal :gst_rate, null: false, precision: 5, scale: 4
+      t.decimal :pst_rate, null: false, precision: 5, scale: 4
+      t.decimal :hst_rate, null: false, precision: 5, scale: 4
+      t.decimal :qst_rate, null: false, precision: 5, scale: 4
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240723173843_add_default_value_to_quantity_in_shopping_cart_items.rb ###
+class AddDefaultValueToQuantityInShoppingCartItems < ActiveRecord::Migration[6.1]
+  def change
+    change_column_default :shopping_cart_items, :quantity, 0
+  end
+end
+
+
+
+### db/migrate/20240728211418_add_stripe_payment_id_to_orders.rb ###
+class AddStripePaymentIdToOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :orders, :stripe_payment_id, :string
+  end
+end
+
+
+
+### db/migrate/20240721062904_create_user_product_reviews.rb ###
+class CreateUserProductReviews < ActiveRecord::Migration[7.1]
+  def change
+    create_table :user_product_reviews do |t|
+      t.references :user, null: false, foreign_key: true
+      t.references :product_review, null: false, foreign_key: true
+      t.datetime :review_date
+      t.integer :rating
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240724060840_create_ckeditor_assets.rb ###
+# frozen_string_literal: true
+
+class CreateCkeditorAssets < ActiveRecord::Migration[6.1]
+  def up
+    create_table :ckeditor_assets do |t|
+      t.string  :data_file_name, null: false
+      t.string  :data_content_type
+      t.integer :data_file_size
+      t.string  :data_fingerprint
+      t.string  :type, limit: 30
+
+      # Uncomment it to save images dimensions, if your need it
+      # t.integer :width
+      # t.integer :height
+
+      t.timestamps null: false
+    end
+
+    add_index :ckeditor_assets, :type
+  end
+
+  def down
+    drop_table :ckeditor_assets
+  end
+end
+
+
+
+### db/migrate/20240721062910_create_categories.rb ###
+class CreateCategories < ActiveRecord::Migration[7.0]
+  def change
+    create_table :categories do |t|
+      t.string :name, null: false
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240724064345_create_action_text_tables.action_text.rb ###
+# This migration comes from action_text (originally 20180528164100)
+class CreateActionTextTables < ActiveRecord::Migration[6.0]
+  def change
+    # Use Active Record's configured type for primary and foreign keys
+    primary_key_type, foreign_key_type = primary_and_foreign_key_types
+
+    create_table :action_text_rich_texts, id: primary_key_type do |t|
+      t.string     :name, null: false
+      t.text       :body, size: :long
+      t.references :record, null: false, polymorphic: true, index: false, type: foreign_key_type
+
+      t.timestamps
+
+      t.index [ :record_type, :record_id, :name ], name: "index_action_text_rich_texts_uniqueness", unique: true
+    end
+  end
+
+  private
+    def primary_and_foreign_key_types
+      config = Rails.configuration.generators
+      setting = config.options[config.orm][:primary_key_type]
+      primary_key_type = setting || :primary_key
+      foreign_key_type = setting || :bigint
+      [primary_key_type, foreign_key_type]
+    end
+end
+
+
+
+### db/migrate/20240726034832_change_status_default_in_orders.rb ###
+class ChangeStatusDefaultInOrders < ActiveRecord::Migration[7.1]
+  def up
+    change_column_default :orders, :status, 'pending'
+
+    # Update existing records
+    Order.where(status: nil).update_all(status: 'pending')
+    Order.where.not(status: %w[pending paid shipped]).update_all(status: 'pending')
+  end
+
+  def down
+    change_column_default :orders, :status, nil
+  end
+end
+
+
+
+### db/migrate/20240721062915_create_product_categories.rb ###
+class CreateProductCategories < ActiveRecord::Migration[7.1]
+  def change
+    create_table :product_categories do |t|
+      t.references :product, null: false, foreign_key: true
+      t.references :category, null: false, foreign_key: true
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240721093644_remove_user_id_from_products.rb ###
+class RemoveUserIdFromProducts < ActiveRecord::Migration[7.1]
+  def change
+    remove_column :products, :user_id, :integer
+  end
+end
+
+
+
+### db/migrate/20240726054911_add_product_price_and_tax_rates_to_order_items_and_orders.rb ###
+class AddProductPriceAndTaxRatesToOrderItemsAndOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :order_items, :product_price, :decimal, precision: 10, scale: 2, null: false, default: 0
+
+    add_column :orders, :gst_rate, :decimal, precision: 5, scale: 4, null: false, default: 0
+    add_column :orders, :pst_rate, :decimal, precision: 5, scale: 4, null: false, default: 0
+    add_column :orders, :hst_rate, :decimal, precision: 5, scale: 4, null: false, default: 0
+    add_column :orders, :qst_rate, :decimal, precision: 5, scale: 4, null: false, default: 0
+  end
+end
+
+
+
+### db/migrate/20240725220729_change_province_id_to_string.rb ###
+class ChangeProvinceIdToString < ActiveRecord::Migration[7.0]
+  def change
+    # Change province_id in orders table to string
+    change_column :orders, :province_id, :string
+
+    # If there are other tables with province_id, change them too
+    # change_column :another_table, :province_id, :string
+  end
+end
+
+
+
+### db/migrate/20240721073957_add_details_to_users.rb ###
+class AddDetailsToUsers < ActiveRecord::Migration[7.1]
+  def change
+    add_column :users, :first_name, :string
+    add_column :users, :last_name, :string
+    add_column :users, :address, :string
+    add_column :users, :city, :string
+    add_column :users, :zip, :string
+    add_column :users, :phone_number, :string
+    add_column :users, :province_id, :string
+  end
+end
+
+
+
+### db/migrate/20240725221037_make_user_id_nullable_in_order_items.rb ###
+class MakeUserIdNullableInOrderItems < ActiveRecord::Migration[7.0]
+  def change
+    change_column_null :order_items, :user_id, true
+  end
+end
+
+
+
+### db/migrate/20240721062351_devise_create_users.rb ###
+# frozen_string_literal: true
+
+class DeviseCreateUsers < ActiveRecord::Migration[7.0]
+  def change
+    create_table :users do |t|
+      ## Database authenticatable
+      t.string :email,              null: false, default: ''
+      t.string :encrypted_password, null: false, default: ''
+
+      ## Recoverable
+      t.string   :reset_password_token
+      t.datetime :reset_password_sent_at
+
+      ## Rememberable
+      t.datetime :remember_created_at
+
+      ## Trackable
+      t.integer  :sign_in_count, default: 0, null: false
+      t.datetime :current_sign_in_at
+      t.datetime :last_sign_in_at
+      t.string   :current_sign_in_ip
+      t.string   :last_sign_in_ip
+
+      ## Confirmable
+      # t.string   :confirmation_token
+      # t.datetime :confirmed_at
+      # t.datetime :confirmation_sent_at
+      # t.string   :unconfirmed_email # Only if using reconfirmable
+
+      ## Lockable
+      # t.integer  :failed_attempts, default: 0, null: false # Only if lock strategy is :failed_attempts
+      # t.string   :unlock_token # Only if unlock strategy is :email or :both
+      # t.datetime :locked_at
+
+      t.timestamps null: false
+    end
+
+    add_index :users, :email,                unique: true
+    add_index :users, :reset_password_token, unique: true
+    # add_index :users, :confirmation_token,   unique: true
+    # add_index :users, :unlock_token,         unique: true
+  end
+end
+
+
+
+### db/migrate/20240722192713_add_slug_to_pages.rb ###
+class AddSlugToPages < ActiveRecord::Migration[7.1]
+  def change
+    add_column :pages, :slug, :string
+  end
+end
+
+
+
+### db/migrate/20240721062102_create_active_admin_comments.rb ###
+class CreateActiveAdminComments < ActiveRecord::Migration[7.1]
+  def self.up
+    create_table :active_admin_comments do |t|
+      t.string :namespace
+      t.text   :body
+      t.references :resource, polymorphic: true
+      t.references :author, polymorphic: true
+      t.timestamps
+    end
+    add_index :active_admin_comments, [:namespace]
+  end
+
+  def self.down
+    drop_table :active_admin_comments
+  end
+end
+
+
+
+### db/migrate/20240721062858_create_user_products.rb ###
+class CreateUserProducts < ActiveRecord::Migration[7.1]
+  def change
+    create_table :user_products do |t|
+      t.references :user, null: false, foreign_key: true
+      t.references :product, null: false, foreign_key: true
+      t.datetime :purchase_date
+      t.integer :quantity
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240721062842_create_shipping_types.rb ###
+class CreateShippingTypes < ActiveRecord::Migration[7.1]
+  def change
+    create_table :shipping_types do |t|
+      t.string :name
+      t.decimal :price
+      t.integer :delivery_days
+
+      t.timestamps
+    end
+  end
+end
+
+
+
+### db/migrate/20240728172912_rename_zip_to_postal_code_in_orders.rb ###
+class ChangeZipToPostalCodeInOrders < ActiveRecord::Migration[7.1]
+  def change
+    rename_column :orders, :zip, :postal_code
+    change_column :orders, :postal_code, :string
+  end
+end
+
+
+
+### db/migrate/20240721063233_add_devise_to_users.rb ###
+# frozen_string_literal: true
+
+class AddDeviseToUsers < ActiveRecord::Migration[7.1]
+  def self.up
+    change_table :users, bulk: true do |t|
+      ## Database authenticatable
+      t.string :email, null: false, default: '' unless column_exists?(:users, :email)
+      t.string :encrypted_password, null: false, default: '' unless column_exists?(:users, :encrypted_password)
+
+      ## Recoverable
+      t.string   :reset_password_token unless column_exists?(:users, :reset_password_token)
+      t.datetime :reset_password_sent_at unless column_exists?(:users, :reset_password_sent_at)
+
+      ## Rememberable
+      t.datetime :remember_created_at unless column_exists?(:users, :remember_created_at)
+
+      ## Trackable
+      # t.integer  :sign_in_count, default: 0, null: false
+      # t.datetime :current_sign_in_at
+      # t.datetime :last_sign_in_at
+      # t.string   :current_sign_in_ip
+      # t.string   :last_sign_in_ip
+
+      ## Confirmable
+      # t.string   :confirmation_token
+      # t.datetime :confirmed_at
+      # t.datetime :confirmation_sent_at
+      # t.string   :unconfirmed_email # Only if using reconfirmable
+
+      ## Lockable
+      # t.integer  :failed_attempts, default: 0, null: false # Only if lock strategy is :failed_attempts
+      # t.string   :unlock_token # Only if unlock strategy is :email or :both
+      # t.datetime :locked_at
+
+      # Uncomment below if timestamps were not included in your original model.
+      # t.timestamps null: false
+    end
+
+    add_index :users, :email, unique: true unless index_exists?(:users, :email)
+    add_index :users, :reset_password_token, unique: true unless index_exists?(:users, :reset_password_token)
+    # add_index :users, :confirmation_token,   unique: true
+    # add_index :users, :unlock_token,         unique: true
+  end
+
+  def self.down
+    # By default, we don't want to make any assumption about how to roll back a migration when your
+    # model already existed. Please edit below which fields you would like to remove in this migration.
+    raise ActiveRecord::IrreversibleMigration
+  end
+end
+
+
+
+### db/migrate/20240725233012_remove_tax_columns_from_orders.rb ###
+class RemoveTaxColumnsFromOrders < ActiveRecord::Migration[7.1]
+  def change
+    remove_column :orders, :gst, :decimal
+    remove_column :orders, :pst, :decimal
+    remove_column :orders, :hst, :decimal
+    remove_column :orders, :qst, :decimal
+  end
+end
+
+
+
+### db/migrate/20240725231845_remove_total_price_from_orders.rb ###
+class RemoveTotalPriceFromOrders < ActiveRecord::Migration[7.1]
+  def change
+    remove_column :orders, :total_price, :decimal
+  end
+end
+
+
+
+### db/seeds.rb ###
+require 'faker'
+require 'open-uri'
+
+puts 'Starting seeding process...'
+
+# Clear existing data in the correct order to avoid foreign key constraints
+OrderItem.destroy_all
+ShoppingCartItem.destroy_all
+ProductReview.destroy_all
+Order.destroy_all
+Product.destroy_all
+Category.destroy_all
+User.destroy_all
+Province.destroy_all
+ShippingType.destroy_all
+
+# Ensure the existence of an admin user
+AdminUser.find_or_create_by!(email: 'admin@readitapp.com') do |admin|
+  admin.password = 'password'
+  admin.password_confirmation = 'password'
+end
+
+# Seed Canadian provinces
+puts 'Seeding Canadian provinces...'
+provinces = [
+  { id: 'NL', name: 'Newfoundland and Labrador', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.15, qst_rate: 0.0 },
+  { id: 'PE', name: 'Prince Edward Island', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.15, qst_rate: 0.0 },
+  { id: 'NS', name: 'Nova Scotia', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.15, qst_rate: 0.0 },
+  { id: 'NB', name: 'New Brunswick', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.15, qst_rate: 0.0 },
+  { id: 'QC', name: 'Quebec', gst_rate: 0.05, pst_rate: 0.0, hst_rate: 0.0, qst_rate: 0.09975 },
+  { id: 'ON', name: 'Ontario', gst_rate: 0.0, pst_rate: 0.0, hst_rate: 0.13, qst_rate: 0.0 },
+  { id: 'MB', name: 'Manitoba', gst_rate: 0.05, pst_rate: 0.07, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'SK', name: 'Saskatchewan', gst_rate: 0.05, pst_rate: 0.06, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'AB', name: 'Alberta', gst_rate: 0.05, pst_rate: 0.0, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'BC', name: 'British Columbia', gst_rate: 0.05, pst_rate: 0.07, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'YT', name: 'Yukon', gst_rate: 0.05, pst_rate: 0.0, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'NT', name: 'Northwest Territories', gst_rate: 0.05, pst_rate: 0.0, hst_rate: 0.0, qst_rate: 0.0 },
+  { id: 'NU', name: 'Nunavut', gst_rate: 0.05, pst_rate: 0.0, hst_rate: 0.0, qst_rate: 0.0 }
+]
+provinces.each do |province|
+  Province.find_or_create_by!(province)
+end
+puts "Provinces seeded: #{Province.count}"
+
+# Seed Shipping Types
+puts 'Seeding shipping types...'
+shipping_types = [
+  { name: 'Standard', price: 5.00, delivery_days: 5 },
+  { name: 'Express', price: 15.00, delivery_days: 2 },
+  { name: 'Overnight', price: 25.00, delivery_days: 1 }
+]
+shipping_types.each do |shipping_type|
+  ShippingType.find_or_create_by!(shipping_type)
+end
+puts "Seeded #{ShippingType.count} shipping types."
+
+# Create a default user for associating products
+default_user = User.find_or_create_by!(email: 'user@readitapp.com') do |user|
+  user.password = 'password'
+  user.password_confirmation = 'password'
+  user.username = Faker::Internet.username
+  user.first_name = Faker::Name.first_name
+  user.last_name = Faker::Name.last_name
+  user.address = Faker::Address.street_address
+  user.city = Faker::Address.city
+  user.zip = Faker::Address.zip_code
+  user.phone_number = Faker::PhoneNumber.phone_number
+  user.province_id = Province.all.sample.id
+end
+
+# Seed categories
+puts 'Seeding categories...'
+categories = ['Fiction', 'Non-fiction', 'Science Fiction', 'Fantasy']
+categories.each do |category_name|
+  Category.find_or_create_by!(name: category_name)
+end
+puts "Seeded #{Category.count} categories."
+
+# Seed users
+puts 'Seeding users...'
+10.times do
+  province = Province.all.sample
+  User.create!(
+    first_name: Faker::Name.first_name,
+    last_name: Faker::Name.last_name,
+    address: Faker::Address.street_address,
+    city: Faker::Address.city,
+    zip: Faker::Address.zip_code,
+    email: Faker::Internet.email,
+    phone_number: Faker::PhoneNumber.phone_number,
+    province_id: province.id,
+    username: Faker::Internet.username,
+    password: 'password',
+    password_confirmation: 'password'
+  )
+  puts "Created user with province: #{province.name}"
+rescue ActiveRecord::RecordInvalid => e
+  puts "Error creating user: #{e.message}"
+end
+
+# Seed products with Faker and associated images
+puts 'Seeding products...'
+100.times do |i|
+  category = Category.all.sample
+  product = Product.create!(
+    name: Faker::Book.title,
+    author: Faker::Book.author,
+    description: Faker::Lorem.paragraph(sentence_count: 5),
+    price: Faker::Commerce.price(range: 10.0..100.0),
+    number_in_stock: Faker::Number.between(from: 1, to: 100),
+    category_id: category.id
+  )
+  puts "Created product #{i + 1}: #{product.name}"
+
+  # Attach a sample image to the product (using a placeholder image service)
+  retries = 3
+  begin
+    file = URI.open('https://via.placeholder.com/150')
+    product.image.attach(io: file, filename: "#{product.name}.jpg")
+  rescue StandardError => e
+    puts "Failed to attach image for product #{product.name}. Retrying... (#{retries} retries left)"
+    retries -= 1
+    retry if retries > 0
+  end
+end
+puts "Seeded #{Product.count} products."
+
+# Create pages for About Us and Contact Us
+puts 'Seeding pages...'
+Page.find_or_create_by!(slug: 'about') do |page|
+  page.title = 'About Us'
+  page.content = 'This is the about page content.'
+end
+
+Page.find_or_create_by!(slug: 'contact') do |page|
+  page.title = 'Contact Us'
+  page.content = 'This is the contact page content.'
+end
+
+puts "Seeded pages: #{Page.count}"
+
+puts 'Seeding process completed.'
+
+
+
+### Gemfile ###
+source 'https://rubygems.org'
+
+ruby '3.3.0'
+
+# Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
+gem 'rails', '~> 7.1.3', '>= 7.1.3.4'
+
+# The original asset pipeline for Rails [https://github.com/rails/sprockets-rails]
+gem 'sprockets-rails'
+
+# Use sqlite3 as the database for Active Record
+gem 'sqlite3', '~> 1.4'
+
+# Use the Puma web server [https://github.com/puma/puma]
+gem 'puma', '>= 5.0'
+
+# Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
+gem 'importmap-rails'
+
+# Hotwire's SPA-like page accelerator [https://turbo.hotwired.dev]
+gem 'turbo-rails'
+
+# Hotwire's modest JavaScript framework [https://stimulus.hotwired.dev]
+gem 'stimulus-rails'
+
+# Build JSON APIs with ease [https://github.com/rails/jbuilder]
+gem 'jbuilder'
+
+# Use Redis adapter to run Action Cable in production
+# gem "redis", ">= 4.0.1"
+
+# Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
+# gem "kredis"
+
+# Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
+# gem "bcrypt", "~> 3.1.7"
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem 'tzinfo-data', platforms: %i[windows jruby]
+
+# Reduces boot times through caching; required in config/boot.rb
+gem 'bootsnap', require: false
+
+# Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
+gem 'image_processing', '~> 1.2'
+
+group :development, :test do
+  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
+  gem 'debug', platforms: %i[mri windows]
+end
+
+group :development do
+  # Use console on exceptions pages [https://github.com/rails/web-console]
+  gem 'web-console'
+
+  # Add speed badges [https://github.com/MiniProfiler/rack-mini-profiler]
+  # gem "rack-mini-profiler"
+
+  # Speed up commands on slow machines / big apps [https://github.com/rails/spring]
+  # gem "spring"
+end
+
+group :test do
+  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
+  gem 'capybara'
+  gem 'selenium-webdriver'
+end
+
+gem 'activeadmin'
+gem 'active_storage_validations'
+gem 'devise'
+gem 'kaminari'
+gem 'rubocop-rails'
+gem 'stripe'
+gem 'tailwindcss-rails'
+
+gem 'faker', '~> 3.4'
+
+gem 'sassc-rails', '~> 2.1'
+
+gem 'nokogiri'
+
+gem 'json'
+
+gem 'open-uri'
+
+gem 'activeadmin_quill_editor'
+
+gem 'httparty'
+
+gem 'typhoeus'
+
+gem 'ruby-vips'
+
+gem 'activeadmin_addons'
+
+group :development, :test do
+  gem 'dotenv-rails'
+  gem 'rspec-rails', '~> 5.0'
+end
+
+gem 'hotwire-rails'
+gem 'rails-ujs'
+gem 'stripe-rails'
+gem 'trix'
+
+
+
+### config/database.yml ###
+# SQLite. Versions 3.8.0 and up are supported.
+#   gem install sqlite3
+#
+#   Ensure the SQLite 3 gem is defined in your Gemfile
+#   gem "sqlite3"
+#
+default: &default
+  adapter: sqlite3
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  timeout: 5000
+
+development:
+  <<: *default
+  database: storage/development.sqlite3
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: storage/test.sqlite3
+
+production:
+  <<: *default
+  database: storage/production.sqlite3
+
+
+
