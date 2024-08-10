@@ -1,0 +1,17 @@
+inherit_from: .rubocop_todo.yml
+
+# Custom configuration
+AllCops:
+  TargetRubyVersion: 3.0
+  NewCops: enable
+
+# Customize individual cops (rules)
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Metrics/LineLength:
+  Max: 120
+
+# Disable specific cops if needed
+# Metrics/BlockLength:
+#   Enabled: false

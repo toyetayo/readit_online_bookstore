@@ -107,3 +107,8 @@ gem 'trix'
 gem 'google-cloud-storage'
 
 gem 'aws-sdk-s3'
+
+group :development, :test do
+  gem 'rubocop', require: false
+  gem 'rubocop-rails', require: false
+end
