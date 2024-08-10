@@ -36,6 +36,9 @@ class ProductsController < ApplicationController
 
   def show
     @product = Product.find(params[:id])
-    @related_products = Product.where(category_id: @product.category_id).where.not(id: @product.id).with_attached_image.limit(4)
+    @related_products = Product.where(category_id: @product.category_id)
+                               .where.not(id: @product.id)
+                               .with_attached_image
+                               .limit(4)
   end
 end

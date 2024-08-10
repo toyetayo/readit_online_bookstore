@@ -1,6 +1,7 @@
 ActiveAdmin.register Product do
   permit_params :name, :author, :description, :number_in_stock, :price, :category_id, :image
 
+  # Index page configuration
   index do
     selectable_column
     id_column
@@ -22,6 +23,7 @@ ActiveAdmin.register Product do
     actions
   end
 
+  # Filters for the index page
   filter :name
   filter :author
   filter :description
@@ -29,19 +31,22 @@ ActiveAdmin.register Product do
   filter :number_in_stock
   filter :category
 
-  form do |f|
-    f.inputs do
+  # Form for creating/editing a product
+  form html: { multipart: true } do |f|
+    f.inputs 'Product Details' do
       f.input :name
       f.input :author
       f.input :description
       f.input :number_in_stock
       f.input :price
       f.input :category, as: :select, collection: Category.all.map { |c| [c.name, c.id] }, include_blank: false
-      f.input :image, as: :file
+      f.input :image, as: :file,
+                      hint: f.object.image.attached? ? image_tag(f.object.image.variant(resize_to_limit: [100, 100])) : content_tag(:span, 'No image uploaded yet')
     end
     f.actions
   end
 
+  # Show page configuration
   show do
     attributes_table do
       row :name
@@ -63,11 +68,13 @@ ActiveAdmin.register Product do
     active_admin_comments
   end
 
+  # Scope the collection of products
   controller do
     def scoped_collection
       Product.all
     end
   end
 
+  # Pagination configuration
   config.per_page = 100
 end
