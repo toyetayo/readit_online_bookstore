@@ -22,7 +22,8 @@ class ProductsController < ApplicationController
         @products = @products.new_products
       when 'recently_updated'
         @products = @products.recently_updated
-        Rails.logger.debug("Recently Updated Products: #{@products.pluck(:updated_at, :name).inspect}")
+        Rails.logger.debug("Recently Updated Products: #{@products.pluck(:updated_at,
+                                                                         :name).inspect}")
       end
     end
 

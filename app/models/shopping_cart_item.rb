@@ -15,11 +15,7 @@ class ShoppingCartItem < ApplicationRecord
   private
 
   def tax_rate
-    if user.present?
-      calculate_tax_rate_for_user
-    else
-      calculate_tax_rate_for_guest
-    end
+    user.present? ? calculate_tax_rate_for_user : calculate_tax_rate_for_guest
   end
 
   def calculate_tax_rate_for_user
@@ -33,7 +29,7 @@ class ShoppingCartItem < ApplicationRecord
   end
 
   def calculate_tax_rate_for_guest
-    default_province = Province.find_by(name: 'default') # Adjust to your default province or handle appropriately
+    default_province = Province.find_by(name: 'default')
     gst = default_province.gst_rate || 0
     pst = default_province.pst_rate || 0
     hst = default_province.hst_rate || 0

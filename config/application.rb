@@ -10,6 +10,6 @@ module ReaditOnlineBookstore
   class Application < Rails::Application
     config.load_defaults 7.1
     config.autoload_lib(ignore: %w[assets tasks])
-    config.stripe.secret_key = ENV['STRIPE_SECRET_KEY']
+    config.stripe.secret_key = ENV.fetch('STRIPE_SECRET_KEY', nil)
   end
 end

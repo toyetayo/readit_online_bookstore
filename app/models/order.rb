@@ -5,9 +5,7 @@ class Order < ApplicationRecord
   belongs_to :shipping_type
   has_many :order_items, dependent: :destroy
 
-  validates :user, presence: true
-  validates :status, presence: true
-  validates :subtotal, presence: true
+  validates :user, :status, :subtotal, presence: true
 
   enum status: { pending: 'pending', paid: 'paid', shipped: 'shipped' }
 
@@ -25,13 +23,13 @@ class Order < ApplicationRecord
     self.total_price = subtotal + gst + pst + hst + qst
   end
 
-  def self.ransackable_associations(auth_object = nil)
+  def self.ransackable_associations(_auth_object = nil)
     %w[order_items province user shipping_type]
   end
 
-  def self.ransackable_attributes(auth_object = nil)
-    %w[address city created_at id province_id purchase_date receiver_name shipping_type_id status subtotal total_price
-       updated_at user_id zip]
+  def self.ransackable_attributes(_auth_object = nil)
+    %w[address city created_at id province_id purchase_date receiver_name shipping_type_id status
+       subtotal total_price updated_at user_id zip]
   end
 
   private

@@ -19,7 +19,8 @@ class Product < ApplicationRecord
   end
 
   def self.search_by_category(keyword, category_id)
-    where('(name LIKE ? OR description LIKE ?) AND category_id = ?', "%#{keyword}%", "%#{keyword}%", category_id)
+    where('(name LIKE ? OR description LIKE ?) AND category_id = ?', "%#{keyword}%",
+          "%#{keyword}%", category_id)
   end
 
   def self.ransackable_attributes(auth_object = nil)

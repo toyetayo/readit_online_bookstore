@@ -1,6 +1,6 @@
 class Province < ApplicationRecord
-  has_many :users
-  has_many :orders
+  has_many :users, dependent: :nullify
+  has_many :orders, dependent: :nullify
 
   validates :name, :gst_rate, :pst_rate, :hst_rate, :qst_rate, presence: true
 

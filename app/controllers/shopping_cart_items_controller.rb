@@ -13,12 +13,17 @@ class ShoppingCartItemsController < ApplicationController
 
   def create
     if user_signed_in?
-      @shopping_cart_item = current_user.shopping_cart_items.find_or_initialize_by(product_id: shopping_cart_item_params[:product_id])
-      if @shopping_cart_item.new_record?
-        @shopping_cart_item.quantity = shopping_cart_item_params[:quantity].to_i
-      else
-        @shopping_cart_item.quantity += shopping_cart_item_params[:quantity].to_i
-      end
+      @shopping_cart_item = current_user.shopping_cart_items
+                                        .find_or_initialize_by(
+                                          product_id: shopping_cart_item_params[:product_id]
+                                        )
+      @shopping_cart_item.quantity = if @shopping_cart_item.new_record?
+                                       shopping_cart_item_params[:quantity].to_i
+                                     else
+                                       @shopping_cart_item.quantity +
+                                         shopping_cart_item_params[:quantity].to_i
+                                     end
+
       if @shopping_cart_item.save
         redirect_to shopping_cart_items_path, notice: 'Item added to cart.'
       else
@@ -32,7 +37,7 @@ class ShoppingCartItemsController < ApplicationController
 
   def update
     if user_signed_in?
-      Rails.logger.debug "Updating shopping cart item: #{shopping_cart_item_params.inspect}"
+      Rails.logger.debug "Updating cart item: #{shopping_cart_item_params.inspect}"
       if @shopping_cart_item.update(shopping_cart_item_params)
         redirect_to shopping_cart_items_path, notice: 'Cart updated.'
       else
@@ -48,7 +53,7 @@ class ShoppingCartItemsController < ApplicationController
 
   def destroy
     if user_signed_in?
-      Rails.logger.debug "Destroying shopping cart item: #{@shopping_cart_item.inspect}"
+      Rails.logger.debug "Destroying cart item: #{@shopping_cart_item.inspect}"
       @shopping_cart_item.destroy
     else
       product_id = params[:id].to_i
@@ -66,7 +71,9 @@ class ShoppingCartItemsController < ApplicationController
 
   def add_to_session_cart(item_params)
     session[:shopping_cart] ||= []
-    existing_item = session[:shopping_cart].find { |item| item['product_id'] == item_params[:product_id].to_i }
+    existing_item = session[:shopping_cart].find do |item|
+      item['product_id'] == item_params[:product_id].to_i
+    end
     if existing_item
       existing_item['quantity'] += item_params[:quantity].to_i
     else
@@ -76,19 +83,21 @@ class ShoppingCartItemsController < ApplicationController
 
   def update_session_cart(item_params)
     session[:shopping_cart].each do |item|
-      item['quantity'] = item_params[:quantity].to_i if item['product_id'] == item_params[:product_id].to_i
+      if item['product_id'] == item_params[:product_id].to_i
+        item['quantity'] = item_params[:quantity].to_i
+      end
     end
   end
 
   def set_shopping_cart_item
     if user_signed_in?
       @shopping_cart_item = current_user.shopping_cart_items.find(params[:id])
-      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}"
+      Rails.logger.debug "Set cart item: #{@shopping_cart_item.inspect}"
     else
       session[:shopping_cart] ||= []
       item = session[:shopping_cart].find { |i| i['product_id'] == params[:id].to_i }
       @shopping_cart_item = OpenStruct.new(item) if item
-      Rails.logger.debug "Set shopping cart item: #{@shopping_cart_item.inspect}" if @shopping_cart_item
+      Rails.logger.debug "Set cart item: #{@shopping_cart_item.inspect}" if @shopping_cart_item
     end
   end
 end

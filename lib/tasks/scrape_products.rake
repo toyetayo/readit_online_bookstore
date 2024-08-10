@@ -7,7 +7,7 @@ namespace :db do
   task scrape_products: :environment do
     base_url = 'https://books.toscrape.com'
     catalog_url = '/catalogue/'
-    page_url = 'https://books.toscrape.com/catalogue/page-1.html'
+    page_url = "#{base_url}/catalogue/page-1.html"
     products = []
     categories = []
     hydra = Typhoeus::Hydra.new(max_concurrency: 20)
@@ -27,7 +27,7 @@ namespace :db do
         request.on_complete do |response|
           product_parsed_page = Nokogiri::HTML(response.body)
 
-          # Correctly extract the image URL
+          # Extract image URL
           image_url = product_parsed_page.at_css('#product_gallery img').attr('src')
           image_url = URI.join(base_url, image_url).to_s
 
@@ -35,11 +35,12 @@ namespace :db do
           author = product_parsed_page.css('table tr')[2].css('td').text
 
           product = {
-            title: product_parsed_page.css('h1').text,
+            title:       product_parsed_page.css('h1').text,
             author:,
-            description: product_parsed_page.at_css('#product_description + p')&.text || 'No description available',
-            price: product_parsed_page.css('.price_color').text.gsub('£', '').to_f,
-            category: product_parsed_page.css('.breadcrumb li:nth-child(3) a').text,
+            description: product_parsed_page.at_css('#product_description + p')&.text ||
+                         'No description available',
+            price:       product_parsed_page.css('.price_color').text.gsub('£', '').to_f,
+            category:    product_parsed_page.css('.breadcrumb li:nth-child(3) a').text,
             image_url:
           }
           products << product
@@ -64,10 +65,10 @@ namespace :db do
     products.each do |product_data|
       category = Category.find_by(name: product_data[:category])
       product = Product.create!(
-        name: product_data[:title],
-        author: product_data[:author],
-        description: product_data[:description],
-        price: product_data[:price],
+        name:            product_data[:title],
+        author:          product_data[:author],
+        description:     product_data[:description],
+        price:           product_data[:price],
         number_in_stock: rand(1..100),
         category:
       )
@@ -76,12 +77,13 @@ namespace :db do
       begin
         logger.info "Attaching image for #{product_data[:title]} from #{product_data[:image_url]}"
         image_file = URI.open(product_data[:image_url])
-        product.image.attach(io: image_file, filename: File.basename(URI.parse(product_data[:image_url]).path))
+        product.image.attach(io:       image_file,
+                             filename: File.basename(URI.parse(product_data[:image_url]).path))
         logger.info "Image attached: #{product.image.attached?}"
       rescue OpenURI::HTTPError => e
         logger.error "Failed to attach image for #{product_data[:title]}: #{e.message}"
       rescue StandardError => e
-        logger.error "An error occurred while attaching image for #{product_data[:title]}: #{e.message}"
+        logger.error "Error attaching image for #{product_data[:title]}: #{e.message}"
       end
     end
 

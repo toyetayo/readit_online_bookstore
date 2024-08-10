@@ -31,10 +31,10 @@ class TaxCalculator
 
     {
       subtotal:,
-      gst: gst_amount,
-      pst: pst_amount,
-      hst: hst_amount,
-      qst: qst_amount,
+      gst:         gst_amount,
+      pst:         pst_amount,
+      hst:         hst_amount,
+      qst:         qst_amount,
       total_price:
     }
   end
