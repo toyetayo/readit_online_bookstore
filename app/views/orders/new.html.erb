@@ -103,9 +103,12 @@
           <%= f.collection_select :province_id, Province.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
         </div>
         <div class="mb-4">
-          <%= f.label :shipping_type_id, "Shipping Type", class: "block text-sm font-medium text-gray-700" %>
-          <%= f.collection_select :shipping_type_id, ShippingType.all, :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
-        </div>
+  <%= f.label :shipping_type_id, "Shipping Type", class: "block text-sm font-medium text-gray-700" %>
+  <%= f.collection_select :shipping_type_id, ShippingType.select(:id, :name).distinct.order(:name), :id, :name, {}, class: "mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" %>
+</div>
+
+
+
 
         <!-- Stripe Payment Section -->
         <div class="mb-4">

@@ -24,6 +24,8 @@ Rails.application.routes.draw do
   get 'contact', to: 'pages#show', defaults: { id: 'contact-us' }
   get 'about', to: 'pages#show', defaults: { id: 'about-us' }
 
+  get '/checkout', to: 'orders#new'
+
   # Define shipping types route
   resources :shipping_types, only: [] do
     member do

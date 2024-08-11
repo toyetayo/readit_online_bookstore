@@ -11,6 +11,10 @@ class OrdersController < ApplicationController
     @shopping_cart_items = current_user.shopping_cart_items
     @shopping_cart_total = @shopping_cart_items.sum { |item| item.product.price * item.quantity }
     calculate_taxes
+
+    # Populate @provinces and @shipping_types for the form
+    @provinces = Province.all
+    @shipping_types = ShippingType.all
   end
 
   def create

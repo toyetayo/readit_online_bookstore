@@ -63,6 +63,11 @@
         </div>
       <% end %>
 
+      <!-- Breadcrumbs -->
+      <div class="breadcrumbs text-sm text-gray-500 mb-4">
+        <%= breadcrumbs if respond_to?(:breadcrumbs) %>
+      </div>
+
       <%= yield %>
     </main>
   </body>

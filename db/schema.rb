@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_10_181317) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_11_005016) do
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
     t.text "body"
@@ -151,6 +151,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_10_181317) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["category_id"], name: "index_product_categories_on_category_id"
+    t.index ["product_id", "category_id"], name: "index_product_categories_on_product_id_and_category_id", unique: true
     t.index ["product_id"], name: "index_product_categories_on_product_id"
   end
 
